@@ -158,6 +158,23 @@
     }
     @keyframes aptSpin { to { transform: rotate(360deg) } }
 
+    /* ── Status line ── */
+    .apt-status {
+      margin-top: 8px; font-size: 11px; font-weight: 500;
+      display: flex; align-items: center; gap: 6px; min-height: 18px;
+    }
+    .apt-status-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+    }
+    .apt-status.connecting .apt-status-dot { background: #585b70; animation: aptPulse 1.2s ease infinite; }
+    .apt-status.receiving  .apt-status-dot { background: #89b4fa; animation: aptPulse .8s ease infinite; }
+    .apt-status.done       .apt-status-dot { background: #a6e3a1; }
+    .apt-status.error      .apt-status-dot { background: #f38ba8; }
+    .apt-status-text { color: #6c7086; }
+    .apt-status.done  .apt-status-text { color: #a6e3a1; }
+    .apt-status.error .apt-status-text { color: #f38ba8; }
+    @keyframes aptPulse { 0%,100% { opacity:1 } 50% { opacity:.25 } }
+
     /* ── Dialog Btns ── */
     .apt-dbtn {
       padding: 9px 18px; border-radius: 8px; border: none;
@@ -486,8 +503,10 @@
       </div>
       <div class="apt-dialog-body">
         <div class="apt-response-label">Response</div>
-        <div id="apt-response-box">
-          <span class="apt-spinner"></span> Running…
+        <div id="apt-response-box"><span class="apt-spinner"></span></div>
+        <div id="apt-status-line" class="apt-status connecting">
+          <span class="apt-status-dot"></span>
+          <span class="apt-status-text">Connecting to Claude API…</span>
         </div>
       </div>
       <div class="apt-dialog-footer">
@@ -499,9 +518,21 @@
     const ov = showOverlay(dlg);
     shadow.querySelector('#apt-resp-close').addEventListener('click', () => ov.remove());
 
-    const box = shadow.querySelector('#apt-response-box');
-    const copyBtn = shadow.querySelector('#apt-resp-copy');
+    const box       = shadow.querySelector('#apt-response-box');
+    const copyBtn   = shadow.querySelector('#apt-resp-copy');
+    const statusEl  = shadow.querySelector('#apt-status-line');
+    const statusTxt = statusEl.querySelector('.apt-status-text');
+
+    function setStatus(state, msg) {
+      statusEl.className = `apt-status ${state}`;
+      statusTxt.textContent = msg;
+    }
+
     let fullText = '';
+    let inputTokens = 0;
+    let outputTokens = 0;
+    const startTime = Date.now();
+    let streaming = false;
 
     GM_xmlhttpRequest({
       method: 'POST',
@@ -522,8 +553,19 @@
       onreadystatechange(res) {
         if (res.readyState < 3) return;
 
-        const raw = res.responseText;
-        const lines = raw.split('\n');
+        // HTTP error (e.g. 401, 429, 500)
+        if (res.status && res.status !== 200) {
+          let errMsg = `HTTP ${res.status}`;
+          try {
+            const body = JSON.parse(res.responseText);
+            if (body.error?.message) errMsg += ` — ${body.error.message}`;
+          } catch (_) {}
+          box.innerHTML = `<span style="color:#f38ba8">${escapeHtml(errMsg)}</span>`;
+          setStatus('error', errMsg);
+          return;
+        }
+
+        const lines = res.responseText.split('\n');
         fullText = '';
 
         for (const line of lines) {
@@ -532,11 +574,33 @@
           if (json === '[DONE]') continue;
           try {
             const evt = JSON.parse(json);
+
+            if (evt.type === 'message_start') {
+              inputTokens = evt.message?.usage?.input_tokens ?? 0;
+              box.innerHTML = '';
+              setStatus('receiving', `Receiving… · ${inputTokens} input tokens sent`);
+            }
+
             if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') {
               fullText += evt.delta.text;
+              if (!streaming) { streaming = true; }
+              setStatus('receiving', `Receiving… · ${fullText.length} chars`);
             }
+
+            if (evt.type === 'message_delta') {
+              outputTokens = evt.usage?.output_tokens ?? 0;
+            }
+
             if (evt.type === 'message_stop') {
+              const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+              setStatus('done', `Done in ${elapsed}s · ${inputTokens} in → ${outputTokens} out tokens`);
               copyBtn.disabled = false;
+            }
+
+            if (evt.type === 'error') {
+              const msg = evt.error?.message ?? 'Unknown API error';
+              box.innerHTML = `<span style="color:#f38ba8">${escapeHtml(msg)}</span>`;
+              setStatus('error', msg);
             }
           } catch (_) {}
         }
@@ -546,7 +610,8 @@
         }
       },
       onerror(err) {
-        box.innerHTML = `<span style="color:#f38ba8">Request failed — check your API key and network.</span>`;
+        box.innerHTML = `<span style="color:#f38ba8">Network error — check your connection.</span>`;
+        setStatus('error', 'Network error — request could not be sent');
         console.error('[APT]', err);
       },
     });
