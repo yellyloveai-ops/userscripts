@@ -384,18 +384,19 @@
         item.classList.add('selected');
         item.querySelector('input').checked = true;
         const isApi = item.dataset.val === 'claude-api';
-        shadow.querySelector('#apt-api-section').style.display  = isApi ? '' : 'none';
-        shadow.querySelector('#apt-model-section').style.display = isApi ? '' : 'none';
+        dlg.querySelector('#apt-api-section').style.display  = isApi ? '' : 'none';
+        dlg.querySelector('#apt-model-section').style.display = isApi ? '' : 'none';
       });
     });
 
-    shadow.querySelector('#apt-settings-cancel').addEventListener('click', () => ov.remove());
-    shadow.querySelector('#apt-settings-save').addEventListener('click', () => {
+    dlg.querySelector('#apt-settings-cancel').addEventListener('click', () => ov.remove());
+    dlg.querySelector('#apt-settings-save').addEventListener('click', () => {
       cfg.mode = dlg.querySelector('input[name="apt-mode"]:checked').value;
-      cfg.apiKey = shadow.querySelector('#apt-api-key-input').value.trim();
-      cfg.model  = shadow.querySelector('#apt-model-select').value;
+      cfg.apiKey = dlg.querySelector('#apt-api-key-input').value.trim();
+      cfg.model  = dlg.querySelector('#apt-model-select').value;
       ov.remove();
     });
+    dlg.addEventListener('keydown', e => { if (e.key === 'Escape') ov.remove(); });
   });
 
   // ─── Test Button ──────────────────────────────────────────────────────────
@@ -451,6 +452,10 @@
 
     const ov = showOverlay(dlg);
 
+    // autofocus first input
+    const firstInput = dlg.querySelector('.apt-field-input[data-ph]');
+    if (firstInput) setTimeout(() => firstInput.focus(), 50);
+
     // live preview update
     function getValues() {
       const v = {};
@@ -462,17 +467,22 @@
 
     dlg.querySelectorAll('.apt-field-input[data-ph]').forEach(inp => {
       inp.addEventListener('input', () => {
-        shadow.querySelector('#apt-preview-box').innerHTML = buildPreviewHtml(template, getValues());
+        dlg.querySelector('#apt-preview-box').innerHTML = buildPreviewHtml(template, getValues());
       });
     });
 
-    shadow.querySelector('#apt-fill-cancel').addEventListener('click', () => ov.remove());
-
-    shadow.querySelector('#apt-fill-submit').addEventListener('click', () => {
-      const values  = getValues();
-      const filled  = fillTemplate(template, values);
+    function doSubmit() {
+      const values = getValues();
+      const filled = fillTemplate(template, values);
       ov.remove();
       dispatch(filled);
+    }
+
+    dlg.querySelector('#apt-fill-cancel').addEventListener('click', () => ov.remove());
+    dlg.querySelector('#apt-fill-submit').addEventListener('click', doSubmit);
+    dlg.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSubmit(); }
+      if (e.key === 'Escape') ov.remove();
     });
   }
 
@@ -522,11 +532,12 @@
     `;
 
     const ov = showOverlay(dlg);
-    shadow.querySelector('#apt-resp-close').addEventListener('click', () => ov.remove());
+    dlg.querySelector('#apt-resp-close').addEventListener('click', () => ov.remove());
+    dlg.addEventListener('keydown', e => { if (e.key === 'Escape') ov.remove(); });
 
-    const box       = shadow.querySelector('#apt-response-box');
-    const copyBtn   = shadow.querySelector('#apt-resp-copy');
-    const statusEl  = shadow.querySelector('#apt-status-line');
+    const box       = dlg.querySelector('#apt-response-box');
+    const copyBtn   = dlg.querySelector('#apt-resp-copy');
+    const statusEl  = dlg.querySelector('#apt-status-line');
     const statusTxt = statusEl.querySelector('.apt-status-text');
 
     function setStatus(state, msg) {
