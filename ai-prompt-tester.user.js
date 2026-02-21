@@ -574,15 +574,20 @@
         if (res.readyState < 3) return;
         console.log(`[APT] readyState=${res.readyState} status=${res.status}`);
 
-        // HTTP error (e.g. 401, 429, 500)
+        // HTTP error — wait for readyState 4 so the body is fully received
         if (res.status && res.status !== 200) {
+          if (res.readyState < 4) return;
           console.error('[APT] HTTP error', res.status, res.responseText);
           let errMsg = `HTTP ${res.status}`;
           try {
             const body = JSON.parse(res.responseText);
             console.error('[APT] error body', body);
             if (body.error?.message) errMsg += ` — ${body.error.message}`;
-          } catch (_) {}
+            else if (body.message) errMsg += ` — ${body.message}`;
+          } catch (e) {
+            console.error('[APT] could not parse error body', e, res.responseText);
+            if (res.responseText) errMsg += ` — ${res.responseText.slice(0, 120)}`;
+          }
           box.innerHTML = `<span style="color:#f38ba8">${escapeHtml(errMsg)}</span>`;
           setStatus('error', errMsg);
           return;
