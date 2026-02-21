@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AI Prompt Tester
 // @namespace    http://tampermonkey.net/
-// @version      1.0.0
+// @version      1.1.0
 // @description  Build & test AI prompts with placeholder substitution, then invoke Claude or other agents
 // @author       yellyloveai-ops
 // @match        http://*/*
@@ -9,7 +9,6 @@
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setValue
 // @grant        GM_getValue
-// @grant        GM_addStyle
 // @connect      api.anthropic.com
 // @run-at       document-end
 // @downloadURL  https://raw.githubusercontent.com/yellyloveai-ops/userscripts/main/ai-prompt-tester.user.js
@@ -20,8 +19,25 @@
 (function () {
   'use strict';
 
-  // ─── Styles ───────────────────────────────────────────────────────────────
-  GM_addStyle(`
+  // ─── State ────────────────────────────────────────────────────────────────
+  const PLACEHOLDER_RE = /\{\{([^{}]+?)\}\}/g;
+
+  const cfg = {
+    get apiKey()   { return GM_getValue('apt_api_key', ''); },
+    set apiKey(v)  { GM_setValue('apt_api_key', v); },
+    get mode()     { return GM_getValue('apt_mode', 'claude-api'); },
+    set mode(v)    { GM_setValue('apt_mode', v); },
+    get model()    { return GM_getValue('apt_model', 'claude-opus-4-6'); },
+    set model(v)   { GM_setValue('apt_model', v); },
+  };
+
+  // ─── Shadow DOM (bypasses page CSP for styles) ────────────────────────────
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const shadow = host.attachShadow({ mode: 'open' });
+
+  const styleEl = document.createElement('style');
+  styleEl.textContent = `
     #apt-panel * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
     #apt-panel {
       position: fixed; bottom: 24px; right: 24px; z-index: 2147483647;
@@ -169,19 +185,17 @@
     .apt-radio-item input { margin-top: 2px; accent-color: #89b4fa; cursor: pointer; }
     .apt-radio-label { color: #cdd6f4; font-size: 13px; font-weight: 500; }
     .apt-radio-desc { color: #6c7086; font-size: 11px; margin-top: 2px; }
-  `);
 
-  // ─── State ────────────────────────────────────────────────────────────────
-  const PLACEHOLDER_RE = /\{\{([^{}]+?)\}\}/g;
-
-  const cfg = {
-    get apiKey()   { return GM_getValue('apt_api_key', ''); },
-    set apiKey(v)  { GM_setValue('apt_api_key', v); },
-    get mode()     { return GM_getValue('apt_mode', 'claude-api'); },
-    set mode(v)    { GM_setValue('apt_mode', v); },
-    get model()    { return GM_getValue('apt_model', 'claude-opus-4-6'); },
-    set model(v)   { GM_setValue('apt_model', v); },
-  };
+    /* ── Toast ── */
+    .apt-toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      color: #1e1e2e; padding: 10px 20px; border-radius: 8px;
+      font-size: 13px; font-weight: 600; z-index: 2147483647;
+      box-shadow: 0 4px 20px rgba(0,0,0,.3);
+      animation: aptFadeIn .15s ease; pointer-events: none;
+    }
+  `;
+  shadow.appendChild(styleEl);
 
   // ─── Build panel ──────────────────────────────────────────────────────────
   const panel = document.createElement('div');
@@ -207,11 +221,11 @@
       </div>
     </div>
   `;
-  document.body.appendChild(panel);
+  shadow.appendChild(panel);
 
   // ─── Draggable ────────────────────────────────────────────────────────────
   (function makeDraggable() {
-    const header = document.getElementById('apt-header');
+    const header = panel.querySelector('#apt-header');
     let ox = 0, oy = 0, dragging = false;
     header.addEventListener('mousedown', e => {
       if (e.target.classList.contains('apt-icon-btn')) return;
@@ -231,12 +245,12 @@
   })();
 
   // ─── Collapse / close ─────────────────────────────────────────────────────
-  document.getElementById('apt-btn-collapse').addEventListener('click', () => {
+  shadow.querySelector('#apt-btn-collapse').addEventListener('click', () => {
     panel.classList.toggle('collapsed');
-    document.getElementById('apt-btn-collapse').textContent = panel.classList.contains('collapsed') ? '□' : '—';
+    shadow.querySelector('#apt-btn-collapse').textContent = panel.classList.contains('collapsed') ? '□' : '—';
   });
-  document.getElementById('apt-btn-close').addEventListener('click', () => {
-    panel.remove();
+  shadow.querySelector('#apt-btn-close').addEventListener('click', () => {
+    host.remove();
   });
 
   // ─── Helper: parse placeholders ───────────────────────────────────────────
@@ -275,13 +289,13 @@
     const ov = document.createElement('div');
     ov.className = 'apt-overlay';
     ov.appendChild(contentEl);
-    document.body.appendChild(ov);
+    shadow.appendChild(ov);
     ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
     return ov;
   }
 
   // ─── Settings Dialog ──────────────────────────────────────────────────────
-  document.getElementById('apt-btn-settings').addEventListener('click', () => {
+  shadow.querySelector('#apt-btn-settings').addEventListener('click', () => {
     const dlg = document.createElement('div');
     dlg.className = 'apt-dialog';
     dlg.innerHTML = `
@@ -347,24 +361,23 @@
         item.classList.add('selected');
         item.querySelector('input').checked = true;
         const isApi = item.dataset.val === 'claude-api';
-        dlg.getElementById && null; // just reference for clarity
-        document.getElementById('apt-api-section').style.display  = isApi ? '' : 'none';
-        document.getElementById('apt-model-section').style.display = isApi ? '' : 'none';
+        shadow.querySelector('#apt-api-section').style.display  = isApi ? '' : 'none';
+        shadow.querySelector('#apt-model-section').style.display = isApi ? '' : 'none';
       });
     });
 
-    document.getElementById('apt-settings-cancel').addEventListener('click', () => ov.remove());
-    document.getElementById('apt-settings-save').addEventListener('click', () => {
+    shadow.querySelector('#apt-settings-cancel').addEventListener('click', () => ov.remove());
+    shadow.querySelector('#apt-settings-save').addEventListener('click', () => {
       cfg.mode = dlg.querySelector('input[name="apt-mode"]:checked').value;
-      cfg.apiKey = document.getElementById('apt-api-key-input').value.trim();
-      cfg.model  = document.getElementById('apt-model-select').value;
+      cfg.apiKey = shadow.querySelector('#apt-api-key-input').value.trim();
+      cfg.model  = shadow.querySelector('#apt-model-select').value;
       ov.remove();
     });
   });
 
   // ─── Test Button ──────────────────────────────────────────────────────────
-  document.getElementById('apt-btn-test').addEventListener('click', () => {
-    const template = document.getElementById('apt-prompt').value.trim();
+  shadow.querySelector('#apt-btn-test').addEventListener('click', () => {
+    const template = shadow.querySelector('#apt-prompt').value.trim();
     if (!template) return;
 
     const placeholders = parsePlaceholders(template);
@@ -426,13 +439,13 @@
 
     dlg.querySelectorAll('.apt-field-input[data-ph]').forEach(inp => {
       inp.addEventListener('input', () => {
-        document.getElementById('apt-preview-box').innerHTML = buildPreviewHtml(template, getValues());
+        shadow.querySelector('#apt-preview-box').innerHTML = buildPreviewHtml(template, getValues());
       });
     });
 
-    document.getElementById('apt-fill-cancel').addEventListener('click', () => ov.remove());
+    shadow.querySelector('#apt-fill-cancel').addEventListener('click', () => ov.remove());
 
-    document.getElementById('apt-fill-submit').addEventListener('click', () => {
+    shadow.querySelector('#apt-fill-submit').addEventListener('click', () => {
       const values  = getValues();
       const filled  = fillTemplate(template, values);
       ov.remove();
@@ -484,10 +497,10 @@
     `;
 
     const ov = showOverlay(dlg);
-    document.getElementById('apt-resp-close').addEventListener('click', () => ov.remove());
+    shadow.querySelector('#apt-resp-close').addEventListener('click', () => ov.remove());
 
-    const box = document.getElementById('apt-response-box');
-    const copyBtn = document.getElementById('apt-resp-copy');
+    const box = shadow.querySelector('#apt-response-box');
+    const copyBtn = shadow.querySelector('#apt-resp-copy');
     let fullText = '';
 
     GM_xmlhttpRequest({
@@ -546,15 +559,10 @@
   // ─── Toast ────────────────────────────────────────────────────────────────
   function showToast(msg, type = 'ok') {
     const t = document.createElement('div');
-    t.style.cssText = `
-      position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
-      background:${type==='error'?'#f38ba8':'#a6e3a1'}; color:#1e1e2e;
-      padding:10px 20px; border-radius:8px; font-size:13px; font-weight:600;
-      z-index:2147483647; box-shadow:0 4px 20px rgba(0,0,0,.3);
-      animation:aptFadeIn .15s ease; pointer-events:none;
-    `;
+    t.className = 'apt-toast';
+    t.style.background = type === 'error' ? '#f38ba8' : '#a6e3a1';
     t.textContent = msg;
-    document.body.appendChild(t);
+    shadow.appendChild(t);
     setTimeout(() => t.remove(), 3000);
   }
 
