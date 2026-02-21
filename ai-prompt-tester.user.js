@@ -551,6 +551,14 @@
     const startTime = Date.now();
     let streaming = false;
 
+    const payload = {
+      model: cfg.model,
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: prompt }],
+      stream: true,
+    };
+    console.log('[APT] ▶ request', { model: cfg.model, promptLen: prompt.length, payload });
+
     GM_xmlhttpRequest({
       method: 'POST',
       url: 'https://api.anthropic.com/v1/messages',
@@ -560,21 +568,19 @@
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true',
       },
-      data: JSON.stringify({
-        model: cfg.model,
-        max_tokens: 4096,
-        messages: [{ role: 'user', content: prompt }],
-        stream: true,
-      }),
+      data: JSON.stringify(payload),
       responseType: 'stream',
       onreadystatechange(res) {
         if (res.readyState < 3) return;
+        console.log(`[APT] readyState=${res.readyState} status=${res.status}`);
 
         // HTTP error (e.g. 401, 429, 500)
         if (res.status && res.status !== 200) {
+          console.error('[APT] HTTP error', res.status, res.responseText);
           let errMsg = `HTTP ${res.status}`;
           try {
             const body = JSON.parse(res.responseText);
+            console.error('[APT] error body', body);
             if (body.error?.message) errMsg += ` — ${body.error.message}`;
           } catch (_) {}
           box.innerHTML = `<span style="color:#f38ba8">${escapeHtml(errMsg)}</span>`;
@@ -591,9 +597,11 @@
           if (json === '[DONE]') continue;
           try {
             const evt = JSON.parse(json);
+            console.log('[APT] event', evt.type, evt);
 
             if (evt.type === 'message_start') {
               inputTokens = evt.message?.usage?.input_tokens ?? 0;
+              console.log('[APT] message_start — input tokens:', inputTokens);
               box.innerHTML = `<span class="apt-spinner"></span> <span class="apt-phase-msg">Request received · waiting for first token… (${inputTokens} tokens sent)</span>`;
               setStatus('receiving', `Receiving… · ${inputTokens} input tokens sent`);
             }
@@ -602,6 +610,7 @@
               fullText += evt.delta.text;
               if (!streaming) {
                 streaming = true;
+                console.log('[APT] first token received');
                 box.classList.add('streaming');
               }
               setStatus('receiving', `Receiving… · ${fullText.length} chars`);
@@ -609,10 +618,12 @@
 
             if (evt.type === 'message_delta') {
               outputTokens = evt.usage?.output_tokens ?? 0;
+              console.log('[APT] message_delta — output tokens:', outputTokens, 'stop_reason:', evt.delta?.stop_reason);
             }
 
             if (evt.type === 'message_stop') {
               const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+              console.log(`[APT] done — ${elapsed}s · in:${inputTokens} out:${outputTokens}`);
               box.classList.remove('streaming');
               setStatus('done', `Done in ${elapsed}s · ${inputTokens} in → ${outputTokens} out tokens`);
               copyBtn.disabled = false;
@@ -620,11 +631,14 @@
 
             if (evt.type === 'error') {
               const msg = evt.error?.message ?? 'Unknown API error';
+              console.error('[APT] stream error event', evt);
               box.classList.remove('streaming');
               box.innerHTML = `<span style="color:#f38ba8">${escapeHtml(msg)}</span>`;
               setStatus('error', msg);
             }
-          } catch (_) {}
+          } catch (parseErr) {
+            console.warn('[APT] failed to parse SSE line', line, parseErr);
+          }
         }
 
         if (fullText) {
@@ -632,10 +646,10 @@
         }
       },
       onerror(err) {
+        console.error('[APT] network error', err);
         box.classList.remove('streaming');
         box.innerHTML = `<span style="color:#f38ba8">Network error — check your connection.</span>`;
         setStatus('error', 'Network error — request could not be sent');
-        console.error('[APT]', err);
       },
     });
 
