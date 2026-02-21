@@ -157,6 +157,12 @@
       vertical-align: middle; margin-right: 8px;
     }
     @keyframes aptSpin { to { transform: rotate(360deg) } }
+    .apt-phase-msg { color: #585b70; font-style: italic; vertical-align: middle; }
+    #apt-response-box.streaming::after {
+      content: '▌'; color: #89b4fa;
+      animation: aptBlink 1s step-end infinite;
+    }
+    @keyframes aptBlink { 0%,100% { opacity:1 } 50% { opacity:0 } }
 
     /* ── Status line ── */
     .apt-status {
@@ -503,7 +509,7 @@
       </div>
       <div class="apt-dialog-body">
         <div class="apt-response-label">Response</div>
-        <div id="apt-response-box"><span class="apt-spinner"></span></div>
+        <div id="apt-response-box"><span class="apt-spinner"></span> <span class="apt-phase-msg">Connecting to Claude API…</span></div>
         <div id="apt-status-line" class="apt-status connecting">
           <span class="apt-status-dot"></span>
           <span class="apt-status-text">Connecting to Claude API…</span>
@@ -577,13 +583,16 @@
 
             if (evt.type === 'message_start') {
               inputTokens = evt.message?.usage?.input_tokens ?? 0;
-              box.innerHTML = '';
+              box.innerHTML = `<span class="apt-spinner"></span> <span class="apt-phase-msg">Request received · waiting for first token… (${inputTokens} tokens sent)</span>`;
               setStatus('receiving', `Receiving… · ${inputTokens} input tokens sent`);
             }
 
             if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') {
               fullText += evt.delta.text;
-              if (!streaming) { streaming = true; }
+              if (!streaming) {
+                streaming = true;
+                box.classList.add('streaming');
+              }
               setStatus('receiving', `Receiving… · ${fullText.length} chars`);
             }
 
@@ -593,12 +602,14 @@
 
             if (evt.type === 'message_stop') {
               const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+              box.classList.remove('streaming');
               setStatus('done', `Done in ${elapsed}s · ${inputTokens} in → ${outputTokens} out tokens`);
               copyBtn.disabled = false;
             }
 
             if (evt.type === 'error') {
               const msg = evt.error?.message ?? 'Unknown API error';
+              box.classList.remove('streaming');
               box.innerHTML = `<span style="color:#f38ba8">${escapeHtml(msg)}</span>`;
               setStatus('error', msg);
             }
@@ -610,6 +621,7 @@
         }
       },
       onerror(err) {
+        box.classList.remove('streaming');
         box.innerHTML = `<span style="color:#f38ba8">Network error — check your connection.</span>`;
         setStatus('error', 'Network error — request could not be sent');
         console.error('[APT]', err);
