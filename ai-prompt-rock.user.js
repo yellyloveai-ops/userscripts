@@ -925,7 +925,8 @@
     _init() {
       // Create Shadow DOM
       this._host = document.createElement('div');
-      document.body.appendChild(this._host);
+      this._host.style.cssText = 'all:initial;position:static';
+      this._attachHost();
       this._shadow = this._host.attachShadow({ mode: 'open' });
 
       // Add styles
@@ -948,6 +949,24 @@
           this._libraryState = state;
           this._renderPromptList();
         }).catch(() => { /* silent fail */ });
+      }
+
+      // Re-attach host if a SPA (Gmail, Google Docs, etc.) removes it from the DOM
+      this._bodyObserver = new MutationObserver(() => {
+        if (!document.documentElement.contains(this._host)) {
+          this._attachHost();
+        }
+      });
+      this._bodyObserver.observe(document.documentElement, { childList: true, subtree: false });
+      const bodyTarget = document.body || document.documentElement;
+      this._bodyObserver.observe(bodyTarget, { childList: true });
+    }
+
+    _attachHost() {
+      // Prefer body; fall back to <html> so SPAs that rebuild body don't drop us
+      const parent = document.body || document.documentElement;
+      if (!parent.contains(this._host)) {
+        parent.appendChild(this._host);
       }
     }
 
@@ -994,13 +1013,13 @@
         this._panel.style.top = r.top + 'px';
       });
 
-      document.addEventListener('mousemove', (e) => {
+      window.addEventListener('mousemove', (e) => {
         if (!dragging) return;
         this._panel.style.left = (e.clientX - ox) + 'px';
         this._panel.style.top = (e.clientY - oy) + 'px';
-      });
+      }, true);
 
-      document.addEventListener('mouseup', () => { dragging = false; });
+      window.addEventListener('mouseup', () => { dragging = false; }, true);
     }
 
     _setupPanelEvents() {
