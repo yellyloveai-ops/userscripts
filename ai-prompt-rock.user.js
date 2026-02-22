@@ -525,7 +525,7 @@
         .apt-icon-btn:hover { color: #cdd6f4; background: #313244; }
         #apt-body {
           flex: 1; overflow: hidden; display: flex; flex-direction: column;
-          padding: 10px 12px 12px;
+          padding: 10px 12px 8px;
         }
         #apt-search {
           width: 100%; background: #181825; border: 1px solid #313244;
@@ -536,6 +536,14 @@
         #apt-search:focus { border-color: #89b4fa; }
         #apt-search::placeholder { color: #45475a; }
         #apt-list-container { flex: 1; overflow-y: auto; }
+        #apt-toolbar {
+          display: flex; align-items: center; justify-content: space-around;
+          padding: 8px 12px; border-top: 1px solid #313244; flex-shrink: 0;
+        }
+        .apt-toolbar-btn {
+          flex: 1; font-size: 18px; padding: 6px 0; text-align: center;
+          border-radius: 8px;
+        }
       `;
     },
 
@@ -997,9 +1005,6 @@
             <span id="apt-title">Prompt Rock</span>
           </div>
           <div id="apt-header-btns">
-            <button class="apt-icon-btn" id="apt-btn-new" title="New prompt">+</button>
-            <button class="apt-icon-btn" id="apt-btn-sync" title="GitHub sync">⇅</button>
-            <button class="apt-icon-btn" id="apt-btn-settings" title="Settings">⚙</button>
             <button class="apt-icon-btn" id="apt-btn-collapse" title="Collapse">—</button>
             <button class="apt-icon-btn" id="apt-btn-close" title="Close">✕</button>
           </div>
@@ -1007,6 +1012,11 @@
         <div id="apt-body">
           <input id="apt-search" placeholder="Search prompts…">
           <div id="apt-list-container"></div>
+        </div>
+        <div id="apt-toolbar">
+          <button class="apt-icon-btn apt-toolbar-btn" id="apt-btn-new" title="New prompt">+</button>
+          <button class="apt-icon-btn apt-toolbar-btn" id="apt-btn-sync" title="GitHub sync">⇅</button>
+          <button class="apt-icon-btn apt-toolbar-btn" id="apt-btn-settings" title="Settings">⚙</button>
         </div>
       `);
       return panel;
