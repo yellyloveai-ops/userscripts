@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AI Prompt Tester
 // @namespace    http://tampermonkey.net/
-// @version      1.4.0
+// @version      1.4.1
 // @description  Build & test AI prompts with placeholder substitution, then invoke Claude or other agents
 // @author       yellyloveai-ops
 // @match        http://*/*
@@ -43,6 +43,7 @@
     CLAUDE_API: 'claude-api',
     OPENAI_API: 'openai-api',
     CLAUDE_WEB: 'claude-web',
+    CHATGPT_WEB: 'chatgpt-web',
     COPY: 'copy'
   });
 
@@ -278,9 +279,9 @@
      * Escape HTML special characters
      */
     escapeHtml(s) {
-      return s.replace(/&/g, '&')
-              .replace(/</g, '<')
-              .replace(/>/g, '>');
+      return s.replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;');
     },
 
     /**
@@ -605,9 +606,19 @@
         }
         .apt-btn:active { transform: scale(.97); }
         #apt-btn-test { background: #89b4fa; color: #1e1e2e; }
+        #apt-btn-save { background: #a6e3a1; color: #1e1e2e; }
         #apt-btn-library { background: #313244; color: #a6adc8; flex: 0 0 40px; font-size: 16px; }
         #apt-btn-settings { background: #313244; color: #a6adc8; flex: 0 0 40px; font-size: 16px; }
         #apt-btn-test:disabled { opacity: .5; cursor: not-allowed; }
+        #apt-url-pattern-row { margin-bottom: 10px; }
+        #apt-url-label { color: #a6adc8; font-size: 12px; font-weight: 500; margin-bottom: 4px; display: block; }
+        #apt-url-pattern {
+          width: 100%; background: #181825; border: 1px solid #313244;
+          border-radius: 8px; color: #cdd6f4; font-size: 12px; padding: 7px 10px;
+          outline: none; transition: border-color .15s; font-family: monospace;
+        }
+        #apt-url-pattern:focus { border-color: #89b4fa; }
+        #apt-url-pattern::placeholder { color: #45475a; }
       `;
     },
 
@@ -1016,6 +1027,12 @@
       // Setup interactions
       this._setupDraggable();
       this._setupPanelEvents();
+
+      // Set URL pattern default to current URL without query string
+      const urlInput = this._shadow.querySelector('#apt-url-pattern');
+      if (urlInput) {
+        urlInput.value = location.href.split('?')[0];
+      }
     }
 
     _createMainPanel() {
@@ -1033,6 +1050,10 @@
           </div>
         </div>
         <div id="apt-body">
+          <div id="apt-url-pattern-row">
+            <label id="apt-url-label">URL Pattern</label>
+            <input id="apt-url-pattern" type="text" placeholder="URL pattern to match…">
+          </div>
           <label id="apt-label">Prompt Template</label>
           <textarea id="apt-prompt" placeholder="Write your prompt here…\n\nUse {{placeholder}} syntax for dynamic values.\nExample: Summarize {{topic}} in {{language}}."></textarea>
           <div id="apt-hint">Use <code>{{placeholder}}</code> for values you want to fill in at test time.</div>
@@ -1040,6 +1061,7 @@
             <button class="apt-btn" id="apt-btn-library" title="Prompt Library">📚</button>
             <button class="apt-btn" id="apt-btn-settings" title="Settings">⚙</button>
             <button class="apt-btn" id="apt-btn-test">▶ Test</button>
+            <button class="apt-btn" id="apt-btn-save" title="Save prompt to local storage">💾 Save</button>
           </div>
         </div>
       `;
@@ -1101,6 +1123,11 @@
         this._handleTestClick();
       });
 
+      // Save button — persist current prompt template to localStorage
+      this._shadow.querySelector('#apt-btn-save').addEventListener('click', () => {
+        this._handleSaveClick();
+      });
+
       // Prompt input tracking
       this._shadow.querySelector('#apt-prompt').addEventListener('input', () => {
         const active = this._getActivePrompt();
@@ -1130,6 +1157,16 @@
       this._activePromptId = promptObj.id;
     }
 
+    _handleSaveClick() {
+      const template = this._shadow.querySelector('#apt-prompt').value;
+      if (!template.trim()) {
+        this._showToast('Nothing to save — prompt is empty', 'error');
+        return;
+      }
+      Utils.safeLocalSet('apt_saved_prompt', template);
+      this._showToast('Prompt saved to local storage!');
+    }
+
     _handleTestClick() {
       const template = this._shadow.querySelector('#apt-prompt').value.trim();
       if (!template) return;
@@ -1152,7 +1189,7 @@
         ? placeholders.map(p => `
             <div class="apt-field">
               <div class="apt-field-label">Fill in: <span>{{${Utils.escapeHtml(p)}}}</span></div>
-              <input class="apt-field-input" data-ph="${Utils.escapeHtml(p)}"
+              <input class="apt-field-input" data-ph="${encodeURIComponent(p)}"
                 placeholder="${Utils.escapeHtml(hintMap[p] || `Value for {{${p}}}`)}" autocomplete="off">
             </div>`).join('')
         : `<div style="color:#6c7086;font-size:13px;padding:4px 0">
@@ -1183,11 +1220,13 @@
         <div class="apt-dialog-footer">
           <button class="apt-dbtn apt-dbtn-cancel" id="apt-fill-cancel">Cancel</button>
           <button class="apt-dbtn apt-dbtn-submit" id="apt-fill-submit">
-            ${this._config.mode === 'copy' 
-              ? '📋 Copy Prompt' 
-              : this._config.mode === 'claude-web' 
-                ? '🌐 Open Claude.ai' 
-                : '⚡ Run Agent'}
+            ${this._config.mode === API_MODES.COPY
+              ? '📋 Copy Prompt'
+              : this._config.mode === API_MODES.CLAUDE_WEB
+                ? '🌐 Open Claude.ai'
+                : this._config.mode === API_MODES.CHATGPT_WEB
+                  ? '🌐 Open ChatGPT'
+                  : '⚡ Run Agent'}
           </button>
         </div>
       `;
@@ -1202,7 +1241,11 @@
       const getValues = () => {
         const v = {};
         dlg.querySelectorAll('.apt-field-input[data-ph]').forEach(inp => {
-          v[inp.dataset.ph] = inp.value;
+          try {
+            v[decodeURIComponent(inp.dataset.ph)] = inp.value;
+          } catch (e) {
+            v[inp.dataset.ph] = inp.value;
+          }
         });
         return v;
       };
@@ -1235,7 +1278,7 @@
     // LIBRARY DIALOG
     // ═══════════════════════════════════════════════════════════════════════
 
-    _openLibraryDialog() {
+    async _openLibraryDialog() {
       const dlg = document.createElement('div');
       dlg.className = 'apt-dialog';
       dlg.innerHTML = `
@@ -1528,6 +1571,13 @@
                   <div class="apt-radio-desc">Opens claude.ai in a new tab with the filled prompt pre-pasted</div>
                 </div>
               </label>
+              <label class="apt-radio-item ${this._config.mode === API_MODES.CHATGPT_WEB ? 'selected' : ''}" data-val="${API_MODES.CHATGPT_WEB}">
+                <input type="radio" name="apt-mode" value="${API_MODES.CHATGPT_WEB}" ${this._config.mode === API_MODES.CHATGPT_WEB ? 'checked' : ''}>
+                <div>
+                  <div class="apt-radio-label">ChatGPT (open in tab)</div>
+                  <div class="apt-radio-desc">Opens chatgpt.com in a new tab with the filled prompt pre-pasted</div>
+                </div>
+              </label>
               <label class="apt-radio-item ${this._config.mode === API_MODES.COPY ? 'selected' : ''}" data-val="${API_MODES.COPY}">
                 <input type="radio" name="apt-mode" value="${API_MODES.COPY}" ${this._config.mode === API_MODES.COPY ? 'checked' : ''}>
                 <div>
@@ -1704,6 +1754,13 @@
         return;
       }
 
+      if (mode === API_MODES.CHATGPT_WEB) {
+        const url = `https://chatgpt.com/?q=${encodeURIComponent(prompt)}`;
+        window.open(url, '_blank');
+        this._showToast('Opened ChatGPT in a new tab');
+        return;
+      }
+
       if (mode === API_MODES.CLAUDE_API) {
         if (!this._config.claudeApiKey) {
           this._showToast('No Claude API key — open Settings (⚙) to add one', 'error');
@@ -1771,13 +1828,3 @@
   app.init();
 
 })();
-</parameter>
-<task_progress>
-- [x] Analyze existing code structure
-- [x] Identify refactoring opportunities
-- [x] Plan refactoring approach
-- [x] Implement refactoring changes
-- [ ] Test refactored code
-- [ ] Verify functionality
-</task_progress>
-</write_to_file>
