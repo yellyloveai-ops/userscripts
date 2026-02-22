@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         AI Prompt Tester
+// @name         AI Prompt Rock
 // @namespace    http://tampermonkey.net/
-// @version      1.4.1
-// @description  Build & test AI prompts with placeholder substitution, then invoke Claude or other agents
+// @version      2.0.0
+// @description  Load context-aware prompts for any page, test with AI, and sync via GitHub
 // @author       yellyloveai-ops
 // @match        http://*/*
 // @match        https://*/*
@@ -13,17 +13,17 @@
 // @connect      api.openai.com
 // @connect      api.github.com
 // @run-at       document-end
-// @downloadURL  https://raw.githubusercontent.com/yellyloveai-ops/userscripts/main/ai-prompt-tester.user.js
-// @updateURL    https://raw.githubusercontent.com/yellyloveai-ops/userscripts/main/ai-prompt-tester.user.js
+// @downloadURL  https://raw.githubusercontent.com/yellyloveai-ops/userscripts/main/ai-prompt-rock.user.js
+// @updateURL    https://raw.githubusercontent.com/yellyloveai-ops/userscripts/main/ai-prompt-rock.user.js
 // @license      Apache-2.0
 // ==/UserScript==
 
 /**
- * AI Prompt Tester - Modular Userscript
- * 
+ * AI Prompt Rock - Modular Userscript
+ *
  * Architecture:
  * - Config: Configuration management with GM_setValue/GM_getValue
- * - Utils: Utility functions (placeholder parsing, HTML escaping, etc.)
+ * - Utils: Utility functions (placeholder parsing, HTML escaping, URL matching, etc.)
  * - Storage: Prompt persistence and GitHub sync
  * - UIManager: Shadow DOM panel and dialog management
  * - APIClient: Claude and OpenAI API integration
@@ -82,23 +82,19 @@
       this._cache = {};
     }
 
-    _getKey(base, legacy) {
-      return `apt_${base}`;
-    }
-
     get mode() { return GM_getValue('apt_mode', DEFAULT_CONFIG.mode); }
     set mode(v) { GM_setValue('apt_mode', v); this._cache.mode = v; }
 
-    get claudeApiKey() { 
-      return GM_getValue('apt_claude_api_key', GM_getValue('apt_api_key', DEFAULT_CONFIG.claudeApiKey)); 
+    get claudeApiKey() {
+      return GM_getValue('apt_claude_api_key', GM_getValue('apt_api_key', DEFAULT_CONFIG.claudeApiKey));
     }
     set claudeApiKey(v) {
       GM_setValue('apt_claude_api_key', v);
       GM_setValue('apt_api_key', v);
     }
 
-    get claudeModel() { 
-      return GM_getValue('apt_claude_model', GM_getValue('apt_model', DEFAULT_CONFIG.claudeModel)); 
+    get claudeModel() {
+      return GM_getValue('apt_claude_model', GM_getValue('apt_model', DEFAULT_CONFIG.claudeModel));
     }
     set claudeModel(v) {
       GM_setValue('apt_claude_model', v);
@@ -126,16 +122,13 @@
     get githubToken() { return GM_getValue('apt_github_token', DEFAULT_CONFIG.githubToken); }
     set githubToken(v) { GM_setValue('apt_github_token', v); }
 
-    get cacheTtlMinutes() { 
-      return Number(GM_getValue('apt_cache_ttl_minutes', DEFAULT_CONFIG.cacheTtlMinutes)); 
+    get cacheTtlMinutes() {
+      return Number(GM_getValue('apt_cache_ttl_minutes', DEFAULT_CONFIG.cacheTtlMinutes));
     }
-    set cacheTtlMinutes(v) { 
-      GM_setValue('apt_cache_ttl_minutes', Number(v) || DEFAULT_CONFIG.cacheTtlMinutes); 
+    set cacheTtlMinutes(v) {
+      GM_setValue('apt_cache_ttl_minutes', Number(v) || DEFAULT_CONFIG.cacheTtlMinutes);
     }
 
-    /**
-     * Load settings from dialog form inputs
-     */
     loadFromForm(formData) {
       const { mode, claudeApiKey, claudeModel, openaiApiKey, openaiModel } = formData;
       if (mode) this.mode = mode;
@@ -145,9 +138,6 @@
       if (openaiModel) this.openaiModel = openaiModel;
     }
 
-    /**
-     * Load GitHub settings from dialog form inputs
-     */
     loadGithubFromForm(formData) {
       const { owner, repo, branch, path, token, cacheTtl } = formData;
       if (owner !== undefined) this.githubOwner = owner;
@@ -164,23 +154,14 @@
   // ═══════════════════════════════════════════════════════════════════════
 
   const Utils = {
-    /**
-     * Generate a unique ID for prompts
-     */
     uid() {
       return `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
     },
 
-    /**
-     * Get current ISO timestamp
-     */
     nowIso() {
       return new Date().toISOString();
     },
 
-    /**
-     * Parse comma-separated values into array
-     */
     toArrayCSV(text) {
       return String(text || '')
         .split(',')
@@ -188,9 +169,6 @@
         .filter(Boolean);
     },
 
-    /**
-     * Parse placeholder hints from text (name: hint format)
-     */
     parsePlaceholderHints(text) {
       return String(text || '')
         .split('\n')
@@ -207,32 +185,20 @@
         .filter(Boolean);
     },
 
-    /**
-     * Convert placeholder hints array to text
-     */
     hintsToText(placeholders) {
       return (Array.isArray(placeholders) ? placeholders : [])
         .map(p => `${p.name}: ${p.hint || ''}`.trim())
         .join('\n');
     },
 
-    /**
-     * Base64 encode Unicode string
-     */
     b64EncodeUnicode(s) {
       return btoa(unescape(encodeURIComponent(s)));
     },
 
-    /**
-     * Base64 decode Unicode string
-     */
     b64DecodeUnicode(s) {
       return decodeURIComponent(escape(atob(s.replace(/\n/g, ''))));
     },
 
-    /**
-     * Safe localStorage get with fallback
-     */
     safeLocalGet(key, fallback) {
       try {
         const raw = localStorage.getItem(key);
@@ -243,9 +209,6 @@
       }
     },
 
-    /**
-     * Safe localStorage set
-     */
     safeLocalSet(key, value) {
       try {
         localStorage.setItem(key, JSON.stringify(value));
@@ -254,9 +217,6 @@
       }
     },
 
-    /**
-     * Safe GM_getValue with localStorage fallback
-     */
     safeGet(key, fallback) {
       try {
         const v = GM_getValue(key);
@@ -267,26 +227,17 @@
       return this.safeLocalGet(key, fallback);
     },
 
-    /**
-     * Safe GM_setValue with localStorage backup
-     */
     safeSet(key, value) {
       try { GM_setValue(key, value); } catch { /* ignore */ }
       this.safeLocalSet(key, value);
     },
 
-    /**
-     * Escape HTML special characters
-     */
     escapeHtml(s) {
       return s.replace(/&/g, '&amp;')
               .replace(/</g, '&lt;')
               .replace(/>/g, '&gt;');
     },
 
-    /**
-     * Parse placeholders from template text
-     */
     parsePlaceholders(text) {
       const seen = new Set();
       const result = [];
@@ -302,28 +253,40 @@
       return result;
     },
 
-    /**
-     * Fill template with placeholder values
-     */
     fillTemplate(template, values) {
-      return template.replace(PLACEHOLDER_RE, (_, name) => 
+      return template.replace(PLACEHOLDER_RE, (_, name) =>
         values[name.trim()] ?? `{{${name}}}`
       );
     },
 
-    /**
-     * Build preview HTML with highlighted placeholders
-     */
     buildPreviewHtml(template, values) {
       return Utils.escapeHtml(template).replace(
         /\{\{([^{}]+?)\}\}/g,
         (_, name) => {
           const v = values[name.trim()];
-          return v 
+          return v
             ? `<strong style="color:#a6e3a1">${Utils.escapeHtml(v)}</strong>`
             : `<mark>{{${Utils.escapeHtml(name)}}}</mark>`;
         }
       );
+    },
+
+    matchesUrl(prompt, url) {
+      const u = url.toLowerCase();
+      const incl = Array.isArray(prompt.include) ? prompt.include.filter(Boolean) : [];
+      const excl = Array.isArray(prompt.exclude) ? prompt.exclude.filter(Boolean) : [];
+      const hit = (pat) => {
+        const p = pat.toLowerCase().trim();
+        if (!p) return false;
+        if (p.includes('*')) {
+          const re = new RegExp(p.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*'));
+          return re.test(u);
+        }
+        return u.includes(p);
+      };
+      if (excl.some(hit)) return false;
+      if (incl.length === 0) return true;
+      return incl.some(hit);
     }
   };
 
@@ -339,9 +302,6 @@
       this._libCacheTsKey = 'apt_prompt_library_cache_ts';
     }
 
-    /**
-     * Create empty document structure
-     */
     emptyDoc() {
       return {
         schemaVersion: 1,
@@ -350,14 +310,11 @@
       };
     }
 
-    /**
-     * Normalize document structure
-     */
     normalizeDoc(doc) {
       if (!doc || typeof doc !== 'object') return this.emptyDoc();
-      
+
       const prompts = Array.isArray(doc.prompts) ? doc.prompts : [];
-      
+
       return {
         schemaVersion: 1,
         updatedAt: doc.updatedAt || Utils.nowIso(),
@@ -369,9 +326,9 @@
           prompt: String(p.prompt || ''),
           placeholders: Array.isArray(p.placeholders)
             ? p.placeholders
-                .map(ph => ({ 
-                  name: String(ph.name || '').trim(), 
-                  hint: String(ph.hint || '') 
+                .map(ph => ({
+                  name: String(ph.name || '').trim(),
+                  hint: String(ph.hint || '')
                 }))
                 .filter(ph => ph.name)
             : [],
@@ -381,18 +338,12 @@
       };
     }
 
-    /**
-     * Load document from storage
-     */
     load() {
       const doc = this.normalizeDoc(Utils.safeGet(this._libKey, this.emptyDoc()));
       const sha = Utils.safeGet(this._libShaKey, '');
       return { doc, sha: String(sha || '') };
     }
 
-    /**
-     * Save document to storage
-     */
     save(doc, sha = null) {
       const next = this.normalizeDoc({ ...doc, updatedAt: Utils.nowIso() });
       Utils.safeSet(this._libKey, next);
@@ -401,30 +352,21 @@
       return next;
     }
 
-    /**
-     * Check if cache is fresh
-     */
     hasFreshCache() {
       const lastTs = Number(Utils.safeGet(this._libCacheTsKey, 0));
       const ttlMs = Math.max(1, this._config.cacheTtlMinutes) * 60 * 1000;
       return lastTs > 0 && Date.now() - lastTs <= ttlMs;
     }
 
-    /**
-     * Find prompt by ID
-     */
     findPrompt(doc, id) {
       return doc.prompts.find(p => p.id === id) || null;
     }
 
-    /**
-     * Insert or update prompt
-     */
     upsertPrompt(doc, promptInput) {
       const now = Utils.nowIso();
       const id = promptInput.id || Utils.uid();
       const existing = this.findPrompt(doc, id);
-      
+
       const nextPrompt = {
         id,
         name: String(promptInput.name || 'Untitled Prompt').trim() || 'Untitled Prompt',
@@ -435,17 +377,14 @@
         createdAt: existing?.createdAt || now,
         updatedAt: now
       };
-      
+
       const prompts = existing
         ? doc.prompts.map(p => (p.id === id ? nextPrompt : p))
         : [nextPrompt, ...doc.prompts];
-      
+
       return this.normalizeDoc({ ...doc, prompts, updatedAt: now });
     }
 
-    /**
-     * Remove prompt by ID
-     */
     removePrompt(doc, id) {
       return this.normalizeDoc({
         ...doc,
@@ -454,19 +393,16 @@
       });
     }
 
-    /**
-     * Get GitHub API URL configuration
-     */
     githubApiUrl() {
       const owner = this._config.githubOwner.trim();
       const repo = this._config.githubRepo.trim();
       const branch = this._config.githubBranch.trim() || 'main';
       const path = (this._config.githubPath.trim() || 'prompts/library.json').replace(/^\/+/, '');
-      
+
       if (!owner || !repo) throw new Error('GitHub owner/repo is required');
-      
+
       const base = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${path}`;
-      
+
       return {
         branch,
         path,
@@ -475,17 +411,14 @@
       };
     }
 
-    /**
-     * Make GitHub API request
-     */
     ghRequest(method, url, bodyObj = null) {
       return new Promise((resolve, reject) => {
         const headers = { Accept: 'application/vnd.github+json' };
-        
+
         if (this._config.githubToken.trim()) {
           headers.Authorization = `Bearer ${this._config.githubToken.trim()}`;
         }
-        
+
         GM_xmlhttpRequest({
           method,
           url,
@@ -500,7 +433,7 @@
               }
               return;
             }
-            
+
             let extra = '';
             try {
               const parsed = JSON.parse(res.responseText || '{}');
@@ -508,7 +441,7 @@
             } catch {
               // ignore parse failure
             }
-            
+
             reject(new Error(`GitHub ${method} failed (${res.status})${extra}`));
           },
           onerror: () => reject(new Error(`GitHub ${method} request failed`))
@@ -516,41 +449,35 @@
       });
     }
 
-    /**
-     * Pull prompts from GitHub
-     */
     async pullFromGitHub() {
       const { readUrl } = this.githubApiUrl();
       const raw = await this.ghRequest('GET', readUrl);
-      
+
       if (!raw.content) throw new Error('GitHub response has no file content');
-      
+
       const parsed = this.normalizeDoc(JSON.parse(Utils.b64DecodeUnicode(raw.content)));
       this.save(parsed, raw.sha || '');
-      
+
       return { doc: parsed, sha: raw.sha || '' };
     }
 
-    /**
-     * Push prompts to GitHub
-     */
     async pushToGitHub(doc, currentSha) {
       const { writeUrl, branch, path } = this.githubApiUrl();
-      
+
       const payload = {
         message: `Update prompt library at ${path}`,
         content: Utils.b64EncodeUnicode(JSON.stringify(this.normalizeDoc(doc), null, 2)),
         branch
       };
-      
+
       if (currentSha) payload.sha = currentSha;
-      
+
       const raw = await this.ghRequest('PUT', writeUrl, payload);
       const nextSha = raw?.content?.sha || raw?.commit?.sha || '';
-      
+
       if (nextSha) Utils.safeSet(this._libShaKey, nextSha);
       Utils.safeSet(this._libCacheTsKey, Date.now());
-      
+
       return nextSha;
     }
   }
@@ -565,15 +492,16 @@
         #apt-panel * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
         #apt-panel {
           position: fixed; bottom: 24px; right: 24px; z-index: 2147483647;
-          width: 380px; background: #1e1e2e; border-radius: 14px;
+          width: 340px; max-height: 500px; background: #1e1e2e; border-radius: 14px;
           box-shadow: 0 8px 40px rgba(0,0,0,.5); border: 1px solid #313244;
-          transition: height .25s ease, opacity .2s;
+          display: flex; flex-direction: column;
+          transition: max-height .25s ease, opacity .2s;
         }
-        #apt-panel.collapsed { height: 52px; overflow: hidden; }
+        #apt-panel.collapsed { max-height: 52px; overflow: hidden; }
         #apt-header {
           display: flex; align-items: center; justify-content: space-between;
           padding: 14px 16px; cursor: move; user-select: none;
-          border-bottom: 1px solid #313244;
+          border-bottom: 1px solid #313244; flex-shrink: 0;
         }
         #apt-header-left { display: flex; align-items: center; gap: 8px; }
         #apt-logo { font-size: 18px; }
@@ -585,40 +513,58 @@
           transition: color .15s, background .15s;
         }
         .apt-icon-btn:hover { color: #cdd6f4; background: #313244; }
-        #apt-body { padding: 14px 16px 16px; }
-        #apt-label { color: #a6adc8; font-size: 12px; font-weight: 500; margin-bottom: 6px; display: block; }
-        #apt-prompt {
-          width: 100%; height: 160px; background: #181825; border: 1px solid #313244;
-          border-radius: 8px; color: #cdd6f4; font-size: 13px; padding: 10px 12px;
-          resize: vertical; outline: none; transition: border-color .15s;
-          line-height: 1.55;
+        #apt-body {
+          flex: 1; overflow: hidden; display: flex; flex-direction: column;
+          padding: 10px 12px 12px;
         }
-        #apt-prompt:focus { border-color: #89b4fa; }
-        #apt-prompt::placeholder { color: #45475a; }
-        #apt-hint {
-          margin-top: 6px; color: #585b70; font-size: 11px;
-        }
-        #apt-hint code { background: #313244; padding: 1px 4px; border-radius: 4px; color: #89b4fa; }
-        #apt-footer { display: flex; gap: 8px; margin-top: 12px; }
-        .apt-btn {
-          flex: 1; padding: 9px 0; border-radius: 8px; border: none;
-          font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity .15s, transform .1s;
-        }
-        .apt-btn:active { transform: scale(.97); }
-        #apt-btn-test { background: #89b4fa; color: #1e1e2e; }
-        #apt-btn-save { background: #a6e3a1; color: #1e1e2e; }
-        #apt-btn-library { background: #313244; color: #a6adc8; flex: 0 0 40px; font-size: 16px; }
-        #apt-btn-settings { background: #313244; color: #a6adc8; flex: 0 0 40px; font-size: 16px; }
-        #apt-btn-test:disabled { opacity: .5; cursor: not-allowed; }
-        #apt-url-pattern-row { margin-bottom: 10px; }
-        #apt-url-label { color: #a6adc8; font-size: 12px; font-weight: 500; margin-bottom: 4px; display: block; }
-        #apt-url-pattern {
+        #apt-search {
           width: 100%; background: #181825; border: 1px solid #313244;
           border-radius: 8px; color: #cdd6f4; font-size: 12px; padding: 7px 10px;
           outline: none; transition: border-color .15s; font-family: monospace;
+          margin-bottom: 8px; flex-shrink: 0;
         }
-        #apt-url-pattern:focus { border-color: #89b4fa; }
-        #apt-url-pattern::placeholder { color: #45475a; }
+        #apt-search:focus { border-color: #89b4fa; }
+        #apt-search::placeholder { color: #45475a; }
+        #apt-list-container { flex: 1; overflow-y: auto; }
+      `;
+    },
+
+    getItemStyles() {
+      return `
+        .apt-section-label {
+          color: #6c7086; font-size: 10px; font-weight: 600; text-transform: uppercase;
+          letter-spacing: .5px; padding: 6px 4px 4px;
+        }
+        .apt-item {
+          display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+          border-radius: 8px; cursor: pointer; transition: background .12s;
+          border: 1px solid transparent; margin-bottom: 2px;
+        }
+        .apt-item:hover { background: #232438; }
+        .apt-item.url-match { border-color: rgba(137,180,250,.25); background: rgba(137,180,250,.04); }
+        .apt-item.url-match:hover { background: rgba(137,180,250,.1); }
+        .apt-item-info { flex: 1; min-width: 0; }
+        .apt-item-name {
+          font-size: 13px; font-weight: 500; color: #cdd6f4;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .apt-item-meta {
+          font-size: 10px; color: #6c7086;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px;
+        }
+        .apt-item-actions { display: flex; gap: 4px; flex-shrink: 0; }
+        .apt-item-btn {
+          background: none; border: 1px solid #313244; cursor: pointer; color: #6c7086;
+          font-size: 13px; padding: 3px 7px; border-radius: 5px; line-height: 1;
+          transition: color .12s, background .12s, border-color .12s;
+        }
+        .apt-item-btn:hover { color: #cdd6f4; border-color: #585b70; }
+        .apt-item-btn.run { color: #89b4fa; border-color: rgba(137,180,250,.4); }
+        .apt-item-btn.run:hover { background: rgba(137,180,250,.15); border-color: #89b4fa; }
+        .apt-empty {
+          text-align: center; padding: 28px 16px; color: #585b70;
+          font-size: 12px; line-height: 1.6;
+        }
       `;
     },
 
@@ -770,31 +716,6 @@
       `;
     },
 
-    getLibraryStyles() {
-      return `
-        .apt-flex { display: flex; gap: 10px; }
-        .apt-flex-1 { flex: 1; }
-        .apt-small { font-size: 11px; color: #6c7086; }
-        .apt-section-box {
-          border: 1px solid #313244; border-radius: 10px; padding: 10px; margin-bottom: 12px;
-          background: rgba(24,24,37,.4);
-        }
-        .apt-row { display: flex; gap: 8px; margin-bottom: 8px; }
-        .apt-list {
-          border: 1px solid #313244; border-radius: 8px; max-height: 170px; overflow-y: auto;
-          background: #181825;
-        }
-        .apt-list-item {
-          border-bottom: 1px solid #313244; padding: 8px 10px; cursor: pointer;
-          color: #cdd6f4; font-size: 12px;
-        }
-        .apt-list-item:last-child { border-bottom: 0; }
-        .apt-list-item:hover { background: #232438; }
-        .apt-list-item.active { background: rgba(137,180,250,.12); outline: 1px solid #89b4fa; }
-        .apt-list-meta { color: #6c7086; font-size: 10px; margin-top: 2px; }
-      `;
-    },
-
     getToastStyles() {
       return `
         .apt-toast {
@@ -807,12 +728,10 @@
       `;
     },
 
-    /**
-     * Get all styles combined
-     */
     getAllStyles() {
       return [
         this.getBaseStyles(),
+        this.getItemStyles(),
         this.getOverlayStyles(),
         this.getDialogStyles(),
         this.getFormStyles(),
@@ -821,7 +740,6 @@
         this.getStatusStyles(),
         this.getDialogButtonStyles(),
         this.getSettingsStyles(),
-        this.getLibraryStyles(),
         this.getToastStyles()
       ].join('\n');
     }
@@ -836,14 +754,11 @@
       this._config = config;
     }
 
-    /**
-     * Make streaming API request
-     */
     streamRequest(provider, prompt, onChunk, onStatus, onComplete, onError) {
       const isClaude = provider === 'claude';
       const model = isClaude ? this._config.claudeModel : this._config.openaiModel;
       const startTime = Date.now();
-      
+
       const payload = isClaude
         ? {
             model,
@@ -876,7 +791,7 @@
             }
           };
 
-      console.log('[APT] ▶ request', { provider, model, promptLen: prompt.length, payload });
+      console.log('[APR] ▶ request', { provider, model, promptLen: prompt.length, payload });
 
       let fullText = '';
       let inputTokens = 0;
@@ -891,20 +806,19 @@
         responseType: 'stream',
         onreadystatechange: (res) => {
           if (res.readyState < 3) return;
-          console.log(`[APT] readyState=${res.readyState} status=${res.status}`);
+          console.log(`[APR] readyState=${res.readyState} status=${res.status}`);
 
-          // Handle HTTP errors
           if (res.status && res.status !== 200) {
             if (res.readyState < 4) return;
-            console.error('[APT] HTTP error', res.status, res.responseText);
+            console.error('[APR] HTTP error', res.status, res.responseText);
             let errMsg = `HTTP ${res.status}`;
             try {
               const body = JSON.parse(res.responseText);
-              console.error('[APT] error body', body);
+              console.error('[APR] error body', body);
               if (body.error?.message) errMsg += ` — ${body.error.message}`;
               else if (body.message) errMsg += ` — ${body.message}`;
             } catch (e) {
-              console.error('[APT] could not parse error body', e, res.responseText);
+              console.error('[APR] could not parse error body', e, res.responseText);
               if (res.responseText) errMsg += ` — ${res.responseText.slice(0, 120)}`;
             }
             onError(errMsg);
@@ -917,7 +831,7 @@
             if (!line.startsWith('data: ')) continue;
             const json = line.slice(6).trim();
             if (json === '[DONE]') continue;
-            
+
             try {
               const evt = JSON.parse(json);
 
@@ -966,7 +880,7 @@
                 }
               }
             } catch (parseErr) {
-              console.warn('[APT] failed to parse SSE line', line, parseErr);
+              console.warn('[APR] failed to parse SSE line', line, parseErr);
             }
           }
 
@@ -984,7 +898,7 @@
           }
         },
         onerror: (err) => {
-          console.error('[APT] network error', err);
+          console.error('[APR] network error', err);
           onError('Network error — check your connection.');
         }
       });
@@ -1000,12 +914,11 @@
       this._config = config;
       this._storage = storage;
       this._apiClient = apiClient;
-      this._activePromptId = '';
       this._libraryState = this._storage.load();
       this._host = null;
       this._shadow = null;
       this._panel = null;
-      
+
       this._init();
     }
 
@@ -1027,11 +940,14 @@
       // Setup interactions
       this._setupDraggable();
       this._setupPanelEvents();
+      this._renderPromptList();
 
-      // Set URL pattern default to current URL without query string
-      const urlInput = this._shadow.querySelector('#apt-url-pattern');
-      if (urlInput) {
-        urlInput.value = location.href.split('?')[0];
+      // Auto-pull from GitHub if cache is stale and credentials are set
+      if (!this._storage.hasFreshCache() && this._config.githubOwner && this._config.githubRepo) {
+        this._storage.pullFromGitHub().then(state => {
+          this._libraryState = state;
+          this._renderPromptList();
+        }).catch(() => { /* silent fail */ });
       }
     }
 
@@ -1042,27 +958,19 @@
         <div id="apt-header">
           <div id="apt-header-left">
             <span id="apt-logo">⚡</span>
-            <span id="apt-title">Prompt Tester</span>
+            <span id="apt-title">Prompt Rock</span>
           </div>
           <div id="apt-header-btns">
+            <button class="apt-icon-btn" id="apt-btn-new" title="New prompt">+</button>
+            <button class="apt-icon-btn" id="apt-btn-sync" title="GitHub sync">⇅</button>
+            <button class="apt-icon-btn" id="apt-btn-settings" title="Settings">⚙</button>
             <button class="apt-icon-btn" id="apt-btn-collapse" title="Collapse">—</button>
             <button class="apt-icon-btn" id="apt-btn-close" title="Close">✕</button>
           </div>
         </div>
         <div id="apt-body">
-          <div id="apt-url-pattern-row">
-            <label id="apt-url-label">URL Pattern</label>
-            <input id="apt-url-pattern" type="text" placeholder="URL pattern to match…">
-          </div>
-          <label id="apt-label">Prompt Template</label>
-          <textarea id="apt-prompt" placeholder="Write your prompt here…\n\nUse {{placeholder}} syntax for dynamic values.\nExample: Summarize {{topic}} in {{language}}."></textarea>
-          <div id="apt-hint">Use <code>{{placeholder}}</code> for values you want to fill in at test time.</div>
-          <div id="apt-footer">
-            <button class="apt-btn" id="apt-btn-library" title="Prompt Library">📚</button>
-            <button class="apt-btn" id="apt-btn-settings" title="Settings">⚙</button>
-            <button class="apt-btn" id="apt-btn-test">▶ Test</button>
-            <button class="apt-btn" id="apt-btn-save" title="Save prompt to local storage">💾 Save</button>
-          </div>
+          <input id="apt-search" placeholder="Search prompts…">
+          <div id="apt-list-container"></div>
         </div>
       `;
       return panel;
@@ -1078,7 +986,7 @@
         const r = this._panel.getBoundingClientRect();
         ox = e.clientX - r.left;
         oy = e.clientY - r.top;
-        
+
         // Switch from bottom/right anchoring to top/left
         this._panel.style.bottom = 'auto';
         this._panel.style.right = 'auto';
@@ -1096,6 +1004,21 @@
     }
 
     _setupPanelEvents() {
+      // New prompt button
+      this._shadow.querySelector('#apt-btn-new').addEventListener('click', () => {
+        this._openPromptDialog(null);
+      });
+
+      // GitHub sync button
+      this._shadow.querySelector('#apt-btn-sync').addEventListener('click', () => {
+        this._openSyncDialog();
+      });
+
+      // Settings button
+      this._shadow.querySelector('#apt-btn-settings').addEventListener('click', () => {
+        this._openSettingsDialog();
+      });
+
       // Collapse button
       this._shadow.querySelector('#apt-btn-collapse').addEventListener('click', () => {
         this._panel.classList.toggle('collapsed');
@@ -1108,73 +1031,296 @@
         this._host.remove();
       });
 
-      // Library button
-      this._shadow.querySelector('#apt-btn-library').addEventListener('click', () => {
-        this._openLibraryDialog();
-      });
-
-      // Settings button
-      this._shadow.querySelector('#apt-btn-settings').addEventListener('click', () => {
-        this._openSettingsDialog();
-      });
-
-      // Test button
-      this._shadow.querySelector('#apt-btn-test').addEventListener('click', () => {
-        this._handleTestClick();
-      });
-
-      // Save button — persist current prompt template to localStorage
-      this._shadow.querySelector('#apt-btn-save').addEventListener('click', () => {
-        this._handleSaveClick();
-      });
-
-      // Prompt input tracking
-      this._shadow.querySelector('#apt-prompt').addEventListener('input', () => {
-        const active = this._getActivePrompt();
-        if (!active) return;
-        if (this._shadow.querySelector('#apt-prompt').value !== active.prompt) {
-          this._activePromptId = '';
-        }
+      // Search input
+      this._shadow.querySelector('#apt-search').addEventListener('input', () => {
+        this._renderPromptList();
       });
     }
 
-    _getActivePrompt() {
-      return this._storage.findPrompt(this._libraryState.doc, this._activePromptId);
-    }
+    // ═══════════════════════════════════════════════════════════════════════
+    // PROMPT LIST
+    // ═══════════════════════════════════════════════════════════════════════
 
-    _getPlaceholderHintMap(promptObj) {
-      const map = {};
-      if (!promptObj || !Array.isArray(promptObj.placeholders)) return map;
-      for (const ph of promptObj.placeholders) {
-        map[ph.name] = ph.hint || '';
+    _renderPromptList() {
+      const container = this._shadow.querySelector('#apt-list-container');
+      if (!container) return;
+
+      const q = (this._shadow.querySelector('#apt-search')?.value || '').trim().toLowerCase();
+      const currentUrl = location.href;
+
+      let prompts = this._libraryState.doc.prompts;
+      if (q) {
+        prompts = prompts.filter(p => {
+          const hay = [p.name, p.include.join(' '), p.prompt].join(' ').toLowerCase();
+          return hay.includes(q);
+        });
       }
-      return map;
-    }
 
-    _applyPromptToEditor(promptObj) {
-      const input = this._shadow.querySelector('#apt-prompt');
-      input.value = promptObj.prompt || '';
-      this._activePromptId = promptObj.id;
-    }
+      const matched = prompts.filter(p => Utils.matchesUrl(p, currentUrl));
+      const others = prompts.filter(p => !Utils.matchesUrl(p, currentUrl));
 
-    _handleSaveClick() {
-      const template = this._shadow.querySelector('#apt-prompt').value;
-      if (!template.trim()) {
-        this._showToast('Nothing to save — prompt is empty', 'error');
+      if (prompts.length === 0) {
+        container.innerHTML = `<div class="apt-empty">${
+          q
+            ? `No prompts match &ldquo;${Utils.escapeHtml(q)}&rdquo;.`
+            : 'No prompts yet.<br>Click <strong>+</strong> to create your first prompt.'
+        }</div>`;
         return;
       }
-      Utils.safeLocalSet('apt_saved_prompt', template);
-      this._showToast('Prompt saved to local storage!');
+
+      let html = '';
+      if (matched.length > 0) {
+        html += '<div class="apt-section-label">This page</div>';
+        html += matched.map(p => this._promptItemHtml(p, true)).join('');
+      }
+      if (others.length > 0) {
+        if (matched.length > 0) html += '<div class="apt-section-label">All prompts</div>';
+        html += others.map(p => this._promptItemHtml(p, false)).join('');
+      }
+
+      container.innerHTML = html;
+
+      // Row click → edit dialog
+      container.querySelectorAll('.apt-item[data-id]').forEach(item => {
+        item.addEventListener('click', (e) => {
+          if (e.target.closest('.apt-item-btn')) return;
+          const p = this._storage.findPrompt(this._libraryState.doc, item.dataset.id);
+          if (p) this._openPromptDialog(p);
+        });
+      });
+
+      // Run button → execute prompt
+      container.querySelectorAll('.apt-item-btn.run[data-id]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const p = this._storage.findPrompt(this._libraryState.doc, btn.dataset.id);
+          if (p) this._runPrompt(p);
+        });
+      });
     }
 
-    _handleTestClick() {
-      const template = this._shadow.querySelector('#apt-prompt').value.trim();
-      if (!template) return;
+    _promptItemHtml(p, isMatch) {
+      const meta = p.include.length > 0 ? p.include.join(', ') : 'all pages';
+      return `
+        <div class="apt-item${isMatch ? ' url-match' : ''}" data-id="${Utils.escapeHtml(p.id)}">
+          <div class="apt-item-info">
+            <div class="apt-item-name">${Utils.escapeHtml(p.name)}</div>
+            <div class="apt-item-meta">${Utils.escapeHtml(meta)}</div>
+          </div>
+          <div class="apt-item-actions">
+            <button class="apt-item-btn run" data-id="${Utils.escapeHtml(p.id)}" title="Run prompt">▶</button>
+          </div>
+        </div>
+      `;
+    }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // RUN PROMPT
+    // ═══════════════════════════════════════════════════════════════════════
+
+    _runPrompt(promptObj) {
+      const template = promptObj.prompt || '';
       const placeholders = Utils.parsePlaceholders(template);
-      const active = this._getActivePrompt();
-      const hintMap = this._getPlaceholderHintMap(active);
-      this._openFillDialog(template, placeholders, hintMap, active);
+      const hintMap = this._getPlaceholderHintMap(promptObj);
+
+      if (placeholders.length === 0) {
+        this._dispatch(template);
+      } else {
+        this._openFillDialog(template, placeholders, hintMap, promptObj);
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // PROMPT DIALOG (new / edit)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    _openPromptDialog(promptObj) {
+      const promptId = promptObj?.id || Utils.uid();
+      const isEdit = !!promptObj;
+
+      const dlg = document.createElement('div');
+      dlg.className = 'apt-dialog';
+      dlg.innerHTML = `
+        <div class="apt-dialog-header">
+          <div>
+            <div class="apt-dialog-title">${isEdit ? 'Edit Prompt' : 'New Prompt'}</div>
+            <div class="apt-dialog-subtitle">${isEdit ? 'Update prompt details' : 'Create a new prompt'}</div>
+          </div>
+        </div>
+        <div class="apt-dialog-body">
+          <div class="apt-field">
+            <div class="apt-field-label">Name</div>
+            <input class="apt-field-input" id="apt-pd-name" placeholder="Prompt name…" value="${Utils.escapeHtml(promptObj?.name || '')}">
+          </div>
+          <div class="apt-field">
+            <div class="apt-field-label">Include URLs <span style="font-weight:400;font-size:11px;color:#6c7086">(comma-sep, supports *)</span></div>
+            <input class="apt-field-input" id="apt-pd-include" placeholder="e.g. github.com/*, *.notion.so" value="${Utils.escapeHtml((promptObj?.include || []).join(', '))}">
+          </div>
+          <div class="apt-field">
+            <div class="apt-field-label">Prompt</div>
+            <textarea class="apt-field-input" id="apt-pd-prompt" style="min-height:120px;resize:vertical;font-family:monospace;font-size:12px" placeholder="Write your prompt… use {{placeholder}} for values">${Utils.escapeHtml(promptObj?.prompt || '')}</textarea>
+          </div>
+          <div class="apt-field">
+            <div class="apt-field-label">Placeholder hints <span style="font-weight:400;font-size:11px;color:#6c7086">(name: hint, one per line)</span></div>
+            <textarea class="apt-field-input" id="apt-pd-hints" style="min-height:60px;resize:vertical;font-size:12px" placeholder="topic: the main topic&#10;language: output language">${Utils.escapeHtml(Utils.hintsToText(promptObj?.placeholders || []))}</textarea>
+          </div>
+        </div>
+        <div class="apt-dialog-footer">
+          ${isEdit ? '<button class="apt-dbtn" id="apt-pd-delete" style="background:#45475a;color:#f38ba8;margin-right:auto">🗑 Delete</button>' : ''}
+          <button class="apt-dbtn apt-dbtn-cancel" id="apt-pd-cancel">Cancel</button>
+          <button class="apt-dbtn apt-dbtn-submit" id="apt-pd-test">▶ Test</button>
+          <button class="apt-dbtn apt-dbtn-copy" id="apt-pd-save">💾 Save</button>
+        </div>
+      `;
+
+      const ov = this._showOverlay(dlg);
+
+      const doSave = () => {
+        const name = dlg.querySelector('#apt-pd-name').value.trim();
+        const prompt = dlg.querySelector('#apt-pd-prompt').value.trim();
+        if (!name) { this._showToast('Name is required', 'error'); return null; }
+        if (!prompt) { this._showToast('Prompt content is required', 'error'); return null; }
+
+        const formData = {
+          id: promptId,
+          name,
+          include: dlg.querySelector('#apt-pd-include').value,
+          exclude: '',
+          prompt: dlg.querySelector('#apt-pd-prompt').value,
+          placeholderHints: dlg.querySelector('#apt-pd-hints').value
+        };
+
+        this._libraryState.doc = this._storage.upsertPrompt(this._libraryState.doc, formData);
+        this._libraryState.doc = this._storage.save(this._libraryState.doc, this._libraryState.sha);
+        this._renderPromptList();
+        return this._storage.findPrompt(this._libraryState.doc, promptId);
+      };
+
+      dlg.querySelector('#apt-pd-cancel').addEventListener('click', () => ov.remove());
+
+      dlg.querySelector('#apt-pd-save').addEventListener('click', () => {
+        if (doSave()) {
+          this._showToast('Prompt saved!');
+          ov.remove();
+        }
+      });
+
+      dlg.querySelector('#apt-pd-test').addEventListener('click', () => {
+        const saved = doSave();
+        if (!saved) return;
+        ov.remove();
+        this._runPrompt(saved);
+      });
+
+      if (isEdit) {
+        dlg.querySelector('#apt-pd-delete').addEventListener('click', () => {
+          this._libraryState.doc = this._storage.removePrompt(this._libraryState.doc, promptId);
+          this._libraryState.doc = this._storage.save(this._libraryState.doc, this._libraryState.sha);
+          this._renderPromptList();
+          this._showToast('Prompt deleted');
+          ov.remove();
+        });
+      }
+
+      dlg.addEventListener('keydown', (e) => { if (e.key === 'Escape') ov.remove(); });
+      setTimeout(() => dlg.querySelector('#apt-pd-name').focus(), 50);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SYNC DIALOG (GitHub pull / push)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    _openSyncDialog() {
+      const dlg = document.createElement('div');
+      dlg.className = 'apt-dialog';
+      dlg.innerHTML = `
+        <div class="apt-dialog-header">
+          <div>
+            <div class="apt-dialog-title">GitHub Sync</div>
+            <div class="apt-dialog-subtitle">Pull from or push prompts to a GitHub repository</div>
+          </div>
+        </div>
+        <div class="apt-dialog-body">
+          <div class="apt-field">
+            <div class="apt-field-label">Owner</div>
+            <input class="apt-field-input" id="apt-sync-owner" placeholder="github-username" value="${Utils.escapeHtml(this._config.githubOwner)}">
+          </div>
+          <div class="apt-field">
+            <div class="apt-field-label">Repository</div>
+            <input class="apt-field-input" id="apt-sync-repo" placeholder="my-prompts" value="${Utils.escapeHtml(this._config.githubRepo)}">
+          </div>
+          <div class="apt-field">
+            <div class="apt-field-label">Branch</div>
+            <input class="apt-field-input" id="apt-sync-branch" placeholder="main" value="${Utils.escapeHtml(this._config.githubBranch)}">
+          </div>
+          <div class="apt-field">
+            <div class="apt-field-label">File path</div>
+            <input class="apt-field-input" id="apt-sync-path" placeholder="prompts/library.json" value="${Utils.escapeHtml(this._config.githubPath)}">
+          </div>
+          <div class="apt-field">
+            <div class="apt-field-label">Token</div>
+            <input class="apt-field-input" id="apt-sync-token" type="password" placeholder="ghp_…" value="${Utils.escapeHtml(this._config.githubToken)}">
+          </div>
+          <div id="apt-sync-status" style="color:#6c7086;font-size:12px;margin-top:4px;min-height:18px"></div>
+        </div>
+        <div class="apt-dialog-footer">
+          <button class="apt-dbtn apt-dbtn-cancel" id="apt-sync-close">Close</button>
+          <button class="apt-dbtn" id="apt-sync-pull" style="background:#89dceb;color:#1e1e2e">⇓ Pull</button>
+          <button class="apt-dbtn" id="apt-sync-push" style="background:#cba6f7;color:#1e1e2e">⇑ Push</button>
+        </div>
+      `;
+
+      const ov = this._showOverlay(dlg);
+      const statusEl = dlg.querySelector('#apt-sync-status');
+
+      const setStatus = (msg, isErr = false) => {
+        statusEl.textContent = msg;
+        statusEl.style.color = isErr ? '#f38ba8' : '#6c7086';
+      };
+
+      const saveSettings = () => {
+        this._config.loadGithubFromForm({
+          owner: dlg.querySelector('#apt-sync-owner').value.trim(),
+          repo: dlg.querySelector('#apt-sync-repo').value.trim(),
+          branch: dlg.querySelector('#apt-sync-branch').value.trim() || 'main',
+          path: dlg.querySelector('#apt-sync-path').value.trim() || 'prompts/library.json',
+          token: dlg.querySelector('#apt-sync-token').value.trim()
+        });
+      };
+
+      dlg.querySelector('#apt-sync-close').addEventListener('click', () => {
+        saveSettings();
+        ov.remove();
+      });
+
+      dlg.querySelector('#apt-sync-pull').addEventListener('click', async () => {
+        saveSettings();
+        setStatus('Pulling from GitHub…');
+        try {
+          this._libraryState = await this._storage.pullFromGitHub();
+          this._renderPromptList();
+          setStatus(`Pulled ${this._libraryState.doc.prompts.length} prompt(s) from GitHub`);
+        } catch (err) {
+          setStatus(err.message, true);
+        }
+      });
+
+      dlg.querySelector('#apt-sync-push').addEventListener('click', async () => {
+        saveSettings();
+        setStatus('Pushing to GitHub…');
+        try {
+          const nextSha = await this._storage.pushToGitHub(this._libraryState.doc, this._libraryState.sha);
+          this._libraryState.sha = nextSha || this._libraryState.sha;
+          this._storage.save(this._libraryState.doc, this._libraryState.sha);
+          setStatus(`Pushed ${this._libraryState.doc.prompts.length} prompt(s) to GitHub`);
+        } catch (err) {
+          setStatus(err.message, true);
+        }
+      });
+
+      dlg.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { saveSettings(); ov.remove(); }
+      });
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1212,8 +1358,8 @@
           <div id="apt-preview-label" style="color:#6c7086;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:14px;">
             Preview
           </div>
-          ${promptMeta 
-            ? `<div class="apt-small" style="margin-bottom:8px">include: ${Utils.escapeHtml(promptMeta.include.join(', ') || '-')} · exclude: ${Utils.escapeHtml(promptMeta.exclude.join(', ') || '-')}</div>`
+          ${promptMeta
+            ? `<div style="font-size:10px;color:#6c7086;margin-bottom:8px">include: ${Utils.escapeHtml(promptMeta.include.join(', ') || '-')} · exclude: ${Utils.escapeHtml(promptMeta.exclude.join(', ') || '-')}</div>`
             : ''}
           <div id="apt-preview-box">${Utils.buildPreviewHtml(template, {})}</div>
         </div>
@@ -1237,7 +1383,6 @@
       const firstInput = dlg.querySelector('.apt-field-input[data-ph]');
       if (firstInput) setTimeout(() => firstInput.focus(), 50);
 
-      // Get values from inputs
       const getValues = () => {
         const v = {};
         dlg.querySelectorAll('.apt-field-input[data-ph]').forEach(inp => {
@@ -1257,7 +1402,6 @@
         });
       });
 
-      // Submit handler
       const doSubmit = () => {
         const values = getValues();
         const filled = Utils.fillTemplate(template, values);
@@ -1267,269 +1411,11 @@
 
       dlg.querySelector('#apt-fill-cancel').addEventListener('click', () => ov.remove());
       dlg.querySelector('#apt-fill-submit').addEventListener('click', doSubmit);
-      
+
       dlg.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSubmit(); }
         if (e.key === 'Escape') ov.remove();
       });
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // LIBRARY DIALOG
-    // ═══════════════════════════════════════════════════════════════════════
-
-    async _openLibraryDialog() {
-      const dlg = document.createElement('div');
-      dlg.className = 'apt-dialog';
-      dlg.innerHTML = `
-        <div class="apt-dialog-header">
-          <div>
-            <div class="apt-dialog-title">Prompt Library</div>
-            <div class="apt-dialog-subtitle">Manage prompts at scale (GM/local cache + GitHub JSON)</div>
-          </div>
-        </div>
-        <div class="apt-dialog-body">
-          <div class="apt-section-box">
-            <div class="apt-row">
-              <button class="apt-dbtn apt-dbtn-submit apt-flex-1" id="apt-lib-new">New Prompt</button>
-              <button class="apt-dbtn apt-dbtn-cancel apt-flex-1" id="apt-lib-pull">Pull GitHub</button>
-              <button class="apt-dbtn apt-dbtn-cancel apt-flex-1" id="apt-lib-push">Push GitHub</button>
-            </div>
-            <div class="apt-small">Schema: each prompt includes <code>include</code>, <code>exclude</code>, prompt content, and placeholder hints.</div>
-          </div>
-
-          <div class="apt-section-box">
-            <div class="apt-settings-section-title">Prompt List</div>
-            <input class="apt-field-input" id="apt-lib-search" placeholder="Search by name, include, exclude...">
-            <div class="apt-list" id="apt-lib-list" style="margin-top:8px"></div>
-          </div>
-
-          <div class="apt-section-box">
-            <div class="apt-settings-section-title">Prompt Editor</div>
-            <input class="apt-field-input" id="apt-lib-id" type="hidden">
-            <div class="apt-field">
-              <input class="apt-field-input" id="apt-lib-name" placeholder="Prompt name">
-            </div>
-            <div class="apt-row">
-              <input class="apt-field-input apt-flex-1" id="apt-lib-include" placeholder="include (comma-separated URL patterns)">
-              <input class="apt-field-input apt-flex-1" id="apt-lib-exclude" placeholder="exclude (comma-separated URL patterns)">
-            </div>
-            <div class="apt-field">
-              <textarea class="apt-field-input" id="apt-lib-template" style="min-height:100px;resize:vertical" placeholder="Prompt content using {{placeholder}}"></textarea>
-            </div>
-            <div class="apt-field">
-              <textarea class="apt-field-input" id="apt-lib-hints" style="min-height:80px;resize:vertical" placeholder="placeholderName: user input hint"></textarea>
-              <div class="apt-small" style="margin-top:4px">One hint per line using <code>name: hint</code>.</div>
-            </div>
-            <div class="apt-row">
-              <button class="apt-dbtn apt-dbtn-submit apt-flex-1" id="apt-lib-save">Save Prompt</button>
-              <button class="apt-dbtn apt-dbtn-cancel apt-flex-1" id="apt-lib-load">Load to Tester</button>
-              <button class="apt-dbtn apt-dbtn-cancel apt-flex-1" id="apt-lib-delete">Delete</button>
-            </div>
-          </div>
-
-          <div class="apt-section-box">
-            <div class="apt-settings-section-title">GitHub Storage</div>
-            <div class="apt-row">
-              <input class="apt-field-input apt-flex-1" id="apt-gh-owner" placeholder="Owner" value="${Utils.escapeHtml(this._config.githubOwner)}">
-              <input class="apt-field-input apt-flex-1" id="apt-gh-repo" placeholder="Repo" value="${Utils.escapeHtml(this._config.githubRepo)}">
-            </div>
-            <div class="apt-row">
-              <input class="apt-field-input apt-flex-1" id="apt-gh-branch" placeholder="Branch" value="${Utils.escapeHtml(this._config.githubBranch)}">
-              <input class="apt-field-input apt-flex-1" id="apt-gh-path" placeholder="prompts/library.json" value="${Utils.escapeHtml(this._config.githubPath)}">
-            </div>
-            <div class="apt-row">
-              <input class="apt-field-input apt-flex-1" id="apt-gh-token" type="password" placeholder="GitHub token (repo scope for private repos)" value="${Utils.escapeHtml(this._config.githubToken)}">
-              <input class="apt-field-input" style="width:120px" id="apt-cache-ttl" type="number" min="1" value="${Utils.escapeHtml(String(this._config.cacheTtlMinutes))}" title="Cache TTL (minutes)">
-            </div>
-          </div>
-        </div>
-        <div class="apt-dialog-footer">
-          <button class="apt-dbtn apt-dbtn-cancel" id="apt-lib-close">Close</button>
-        </div>
-      `;
-
-      const ov = this._showOverlay(dlg);
-      const listEl = dlg.querySelector('#apt-lib-list');
-      const statusNote = document.createElement('div');
-      statusNote.className = 'apt-small';
-      statusNote.style.marginTop = '8px';
-      dlg.querySelector('.apt-dialog-body').appendChild(statusNote);
-
-      const setNote = (msg, isErr = false) => {
-        statusNote.textContent = msg;
-        statusNote.style.color = isErr ? '#f38ba8' : '#6c7086';
-      };
-
-      const readForm = () => ({
-        id: dlg.querySelector('#apt-lib-id').value,
-        name: dlg.querySelector('#apt-lib-name').value,
-        include: dlg.querySelector('#apt-lib-include').value,
-        exclude: dlg.querySelector('#apt-lib-exclude').value,
-        prompt: dlg.querySelector('#apt-lib-template').value,
-        placeholderHints: dlg.querySelector('#apt-lib-hints').value
-      });
-
-      const writeForm = (promptObj) => {
-        dlg.querySelector('#apt-lib-id').value = promptObj?.id || '';
-        dlg.querySelector('#apt-lib-name').value = promptObj?.name || '';
-        dlg.querySelector('#apt-lib-include').value = (promptObj?.include || []).join(', ');
-        dlg.querySelector('#apt-lib-exclude').value = (promptObj?.exclude || []).join(', ');
-        dlg.querySelector('#apt-lib-template').value = promptObj?.prompt || '';
-        dlg.querySelector('#apt-lib-hints').value = Utils.hintsToText(promptObj?.placeholders || []);
-      };
-
-      const saveSettingsFromDialog = () => {
-        this._config.loadGithubFromForm({
-          owner: dlg.querySelector('#apt-gh-owner').value.trim(),
-          repo: dlg.querySelector('#apt-gh-repo').value.trim(),
-          branch: dlg.querySelector('#apt-gh-branch').value.trim() || 'main',
-          path: dlg.querySelector('#apt-gh-path').value.trim() || 'prompts/library.json',
-          token: dlg.querySelector('#apt-gh-token').value.trim(),
-          cacheTtl: dlg.querySelector('#apt-cache-ttl').value
-        });
-      };
-
-      const renderList = () => {
-        const q = dlg.querySelector('#apt-lib-search').value.trim().toLowerCase();
-        const prompts = this._libraryState.doc.prompts.filter(p => {
-          if (!q) return true;
-          const hay = [
-            p.name,
-            p.include.join(' '),
-            p.exclude.join(' '),
-            p.prompt
-          ].join(' ').toLowerCase();
-          return hay.includes(q);
-        });
-
-        listEl.innerHTML = prompts.length
-          ? prompts.map(p => `
-              <div class="apt-list-item ${p.id === this._activePromptId ? 'active' : ''}" data-id="${Utils.escapeHtml(p.id)}">
-                <div>${Utils.escapeHtml(p.name)}</div>
-                <div class="apt-list-meta">include: ${Utils.escapeHtml(p.include.join(', ') || '-')} · exclude: ${Utils.escapeHtml(p.exclude.join(', ') || '-')}</div>
-              </div>
-            `).join('')
-          : `<div class="apt-list-item">No prompts yet. Create one with "New Prompt".</div>`;
-
-        listEl.querySelectorAll('.apt-list-item[data-id]').forEach(item => {
-          item.addEventListener('click', () => {
-            this._activePromptId = item.dataset.id;
-            const p = this._getActivePrompt();
-            writeForm(p);
-            renderList();
-          });
-        });
-      };
-
-      const persistLibrary = (noteMsg = 'Saved to short-term cache') => {
-        this._libraryState.doc = this._storage.save(this._libraryState.doc, this._libraryState.sha);
-        setNote(noteMsg);
-      };
-
-      // Event handlers
-      dlg.querySelector('#apt-lib-close').addEventListener('click', () => {
-        saveSettingsFromDialog();
-        ov.remove();
-      });
-
-      dlg.querySelector('#apt-lib-search').addEventListener('input', renderList);
-
-      dlg.querySelector('#apt-lib-new').addEventListener('click', () => {
-        this._activePromptId = '';
-        writeForm(null);
-        renderList();
-        setNote('Ready for a new prompt');
-      });
-
-      dlg.querySelector('#apt-lib-save').addEventListener('click', () => {
-        const form = readForm();
-        if (!form.name.trim()) {
-          setNote('Prompt name is required', true);
-          return;
-        }
-        if (!form.prompt.trim()) {
-          setNote('Prompt content is required', true);
-          return;
-        }
-        this._libraryState.doc = this._storage.upsertPrompt(this._libraryState.doc, form);
-        this._activePromptId = form.id || this._libraryState.doc.prompts[0]?.id || '';
-        persistLibrary('Prompt saved to short-term cache');
-        renderList();
-      });
-
-      dlg.querySelector('#apt-lib-load').addEventListener('click', () => {
-        const form = readForm();
-        if (!form.prompt.trim()) {
-          setNote('Nothing to load. Add or select a prompt first.', true);
-          return;
-        }
-        const current = form.id ? this._storage.findPrompt(this._libraryState.doc, form.id) : null;
-        if (current) {
-          this._applyPromptToEditor(current);
-        } else {
-          this._shadow.querySelector('#apt-prompt').value = form.prompt;
-          this._activePromptId = '';
-        }
-        this._showToast('Prompt loaded into tester');
-        setNote('Loaded into main tester panel');
-      });
-
-      dlg.querySelector('#apt-lib-delete').addEventListener('click', () => {
-        const id = dlg.querySelector('#apt-lib-id').value;
-        if (!id) {
-          setNote('Select a saved prompt to delete', true);
-          return;
-        }
-        this._libraryState.doc = this._storage.removePrompt(this._libraryState.doc, id);
-        this._activePromptId = '';
-        writeForm(null);
-        persistLibrary('Prompt deleted from short-term cache');
-        renderList();
-      });
-
-      dlg.querySelector('#apt-lib-pull').addEventListener('click', async () => {
-        saveSettingsFromDialog();
-        try {
-          setNote('Pulling from GitHub...');
-          this._libraryState = await this._storage.pullFromGitHub();
-          this._activePromptId = '';
-          writeForm(null);
-          renderList();
-          setNote(`Pulled ${this._libraryState.doc.prompts.length} prompt(s) from GitHub`);
-        } catch (err) {
-          setNote(err.message, true);
-        }
-      });
-
-      dlg.querySelector('#apt-lib-push').addEventListener('click', async () => {
-        saveSettingsFromDialog();
-        try {
-          setNote('Pushing to GitHub...');
-          const nextSha = await this._storage.pushToGitHub(this._libraryState.doc, this._libraryState.sha);
-          this._libraryState.sha = nextSha || this._libraryState.sha;
-          this._storage.save(this._libraryState.doc, this._libraryState.sha);
-          setNote(`Pushed ${this._libraryState.doc.prompts.length} prompt(s) to GitHub`);
-        } catch (err) {
-          setNote(err.message, true);
-        }
-      });
-
-      // Initial load
-      if (!this._storage.hasFreshCache() && this._config.githubOwner && this._config.githubRepo) {
-        try {
-          setNote('Cache expired; pulling latest library from GitHub...');
-          this._libraryState = await this._storage.pullFromGitHub();
-        } catch (err) {
-          setNote(`Using local cache (${err.message})`, true);
-        }
-      } else {
-        setNote(`Loaded ${this._libraryState.doc.prompts.length} prompt(s) from short-term cache`);
-      }
-
-      renderList();
-      const active = this._getActivePrompt();
-      if (active) writeForm(active);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1595,7 +1481,7 @@
           <div class="apt-settings-section" id="apt-claude-model-section" style="${this._config.mode !== API_MODES.CLAUDE_API ? 'display:none' : ''}">
             <div class="apt-settings-section-title">Claude Model</div>
             <select class="apt-field-input" id="apt-claude-model-select">
-              ${CLAUDE_MODELS.map(m => 
+              ${CLAUDE_MODELS.map(m =>
                 `<option value="${m.id}" ${this._config.claudeModel === m.id ? 'selected' : ''}>${m.name}</option>`
               ).join('')}
             </select>
@@ -1608,7 +1494,7 @@
           <div class="apt-settings-section" id="apt-openai-model-section" style="${this._config.mode !== API_MODES.OPENAI_API ? 'display:none' : ''}">
             <div class="apt-settings-section-title">ChatGPT Model</div>
             <select class="apt-field-input" id="apt-openai-model-select">
-              ${OPENAI_MODELS.map(m => 
+              ${OPENAI_MODELS.map(m =>
                 `<option value="${m.id}" ${this._config.openaiModel === m.id ? 'selected' : ''}>${m.name}</option>`
               ).join('')}
             </select>
@@ -1628,11 +1514,11 @@
           dlg.querySelectorAll('.apt-radio-item').forEach(i => i.classList.remove('selected'));
           item.classList.add('selected');
           item.querySelector('input').checked = true;
-          
+
           const mode = item.dataset.val;
           const isClaudeApi = mode === API_MODES.CLAUDE_API;
           const isOpenAiApi = mode === API_MODES.OPENAI_API;
-          
+
           dlg.querySelector('#apt-claude-api-section').style.display = isClaudeApi ? '' : 'none';
           dlg.querySelector('#apt-claude-model-section').style.display = isClaudeApi ? '' : 'none';
           dlg.querySelector('#apt-openai-api-section').style.display = isOpenAiApi ? '' : 'none';
@@ -1651,7 +1537,7 @@
         });
         ov.remove();
       });
-      
+
       dlg.addEventListener('keydown', (e) => { if (e.key === 'Escape') ov.remove(); });
     }
 
@@ -1727,21 +1613,21 @@
       );
 
       copyBtn.addEventListener('click', () => {
-        navigator.clipboard.writeText(box.textContent).then(() => 
+        navigator.clipboard.writeText(box.textContent).then(() =>
           this._showToast('Response copied!')
         );
       });
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // DISPATCH & TOAST
+    // DISPATCH & HELPERS
     // ═══════════════════════════════════════════════════════════════════════
 
     _dispatch(prompt) {
       const mode = this._config.mode;
 
       if (mode === API_MODES.COPY) {
-        navigator.clipboard.writeText(prompt).then(() => 
+        navigator.clipboard.writeText(prompt).then(() =>
           this._showToast('Prompt copied to clipboard!')
         );
         return;
@@ -1782,6 +1668,15 @@
       this._showToast(`Unknown mode: ${mode}`, 'error');
     }
 
+    _getPlaceholderHintMap(promptObj) {
+      const map = {};
+      if (!promptObj || !Array.isArray(promptObj.placeholders)) return map;
+      for (const ph of promptObj.placeholders) {
+        map[ph.name] = ph.hint || '';
+      }
+      return map;
+    }
+
     _showOverlay(contentEl) {
       const ov = document.createElement('div');
       ov.className = 'apt-overlay';
@@ -1815,7 +1710,7 @@
 
     init() {
       this._ui = new UIManager(this._config, this._storage, this._apiClient);
-      console.log('[APT] AI Prompt Tester initialized');
+      console.log('[APR] AI Prompt Rock initialized');
     }
   }
 
@@ -1823,7 +1718,6 @@
   // INITIALIZATION
   // ═══════════════════════════════════════════════════════════════════════
 
-  // Start the application
   const app = new App();
   app.init();
 
