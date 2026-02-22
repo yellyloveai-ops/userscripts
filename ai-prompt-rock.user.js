@@ -1085,8 +1085,9 @@
         });
       }
 
-      const matched = prompts.filter(p => Utils.matchesUrl(p, currentUrl));
-      const others = prompts.filter(p => !Utils.matchesUrl(p, currentUrl));
+      const hasInclude = (p) => Array.isArray(p.include) && p.include.filter(Boolean).length > 0;
+      const matched = prompts.filter(p => hasInclude(p) && Utils.matchesUrl(p, currentUrl));
+      const others = prompts.filter(p => !hasInclude(p) || !Utils.matchesUrl(p, currentUrl));
 
       if (prompts.length === 0) {
         setHTML(container, `<div class="apt-empty">${
