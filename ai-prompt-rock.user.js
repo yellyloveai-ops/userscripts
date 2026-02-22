@@ -575,6 +575,13 @@
           text-align: center; padding: 28px 16px; color: #585b70;
           font-size: 12px; line-height: 1.6;
         }
+        .apt-section-toggle {
+          cursor: pointer; display: flex; align-items: center;
+          justify-content: space-between; border-radius: 4px;
+          transition: color .12s;
+        }
+        .apt-section-toggle:hover { color: #a6adc8; }
+        .apt-toggle-icon { font-size: 9px; opacity: .7; }
       `;
     },
 
@@ -1104,11 +1111,31 @@
         html += matched.map(p => this._promptItemHtml(p, true)).join('');
       }
       if (others.length > 0) {
-        if (matched.length > 0) html += '<div class="apt-section-label">All prompts</div>';
-        html += others.map(p => this._promptItemHtml(p, false)).join('');
+        if (matched.length > 0) {
+          const collapsed = !q; // hide by default only when not searching
+          html += `<div class="apt-section-label apt-section-toggle" id="apt-others-toggle">
+            <span>All prompts (${others.length})</span>
+            <span class="apt-toggle-icon">${collapsed ? '▶' : '▼'}</span>
+          </div>`;
+          html += `<div id="apt-others-list"${collapsed ? ' style="display:none"' : ''}>${others.map(p => this._promptItemHtml(p, false)).join('')}</div>`;
+        } else {
+          html += others.map(p => this._promptItemHtml(p, false)).join('');
+        }
       }
 
       setHTML(container, html);
+
+      // Toggle "All prompts" section
+      const othersToggle = container.querySelector('#apt-others-toggle');
+      if (othersToggle) {
+        othersToggle.addEventListener('click', () => {
+          const list = container.querySelector('#apt-others-list');
+          const icon = othersToggle.querySelector('.apt-toggle-icon');
+          const nowHidden = list.style.display === 'none';
+          list.style.display = nowHidden ? '' : 'none';
+          icon.textContent = nowHidden ? '▼' : '▶';
+        });
+      }
 
       // Row click → edit dialog
       container.querySelectorAll('.apt-item[data-id]').forEach(item => {
