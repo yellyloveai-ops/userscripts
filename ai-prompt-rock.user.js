@@ -1167,6 +1167,17 @@
       const promptId = promptObj?.id || Utils.uid();
       const isEdit = !!promptObj;
 
+      const defaultInclude = !isEdit ? (() => {
+        try {
+          const u = new URL(location.href);
+          const cleanPath = u.pathname
+            .split('/')
+            .filter(seg => !/^\d+$/.test(seg) && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg))
+            .join('/');
+          return u.hostname + cleanPath;
+        } catch { return ''; }
+      })() : '';
+
       const dlg = document.createElement('div');
       dlg.className = 'apt-dialog';
       setHTML(dlg, `
@@ -1183,7 +1194,7 @@
           </div>
           <div class="apt-field">
             <div class="apt-field-label">Include URLs <span style="font-weight:400;font-size:11px;color:#6c7086">(comma-sep, supports *)</span></div>
-            <input class="apt-field-input" id="apt-pd-include" placeholder="e.g. github.com/*, *.notion.so" value="${Utils.escapeHtml((promptObj?.include || []).join(', '))}">
+            <input class="apt-field-input" id="apt-pd-include" placeholder="e.g. github.com/*, *.notion.so" value="${Utils.escapeHtml(isEdit ? (promptObj?.include || []).join(', ') : defaultInclude)}">
           </div>
           <div class="apt-field">
             <div class="apt-field-label">Prompt</div>
