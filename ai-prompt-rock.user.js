@@ -1397,6 +1397,8 @@
       dlg.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') { saveSettings(); ov.remove(); }
       });
+
+      setTimeout(() => dlg.querySelector('#apt-sync-owner').focus(), 50);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
