@@ -545,6 +545,15 @@
           transition: background .15s, border-color .15s; user-select: none;
         }
         #apt-restore-pill:hover { background: rgba(137,180,250,.12); border-color: #89b4fa; }
+        #apt-restore-pill::after {
+          content: 'Prompt Rock (by Yelly.ink)';
+          position: absolute; right: calc(100% + 10px); top: 50%; transform: translateY(-50%);
+          background: #1e1e2e; border: 1px solid #313244; border-radius: 8px;
+          color: #cdd6f4; font-size: 12px; font-weight: 500; white-space: nowrap;
+          padding: 5px 10px; pointer-events: none;
+          opacity: 0; transition: opacity .15s;
+        }
+        #apt-restore-pill:hover::after { opacity: 1; }
       `;
     },
 
