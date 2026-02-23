@@ -537,7 +537,7 @@
         #apt-panel:hover #apt-title, #apt-panel:focus-within #apt-title { opacity: 1; }
         #apt-header-btns { display: flex; gap: 3px; align-items: center; opacity: 0.4; transition: opacity .15s; }
         #apt-panel:hover #apt-header-btns, #apt-panel:focus-within #apt-header-btns { opacity: 1; }
-        .apt-header-sep { width: 1px; height: 14px; background: #313244; margin: 0 3px; flex-shrink: 0; }
+        .apt-header-sep { width: 1px; height: 14px; background: rgba(137,180,250,.2); margin: 0 4px; flex-shrink: 0; }
         .apt-icon-btn {
           background: none; border: none; cursor: pointer; color: #6c7086;
           font-size: 15px; padding: 3px 6px; border-radius: 6px; line-height: 1;
@@ -551,7 +551,7 @@
           transition: max-height .25s ease, padding .2s ease, opacity .2s;
         }
         #apt-panel:hover #apt-body, #apt-panel:focus-within #apt-body { opacity: 1; }
-        /* Page view — pretty collapsed state when not hovered */
+        /* Page view — frosted glass, stable layout; hide only prompt content */
         #apt-panel.view-page {
           background: rgba(20,20,35,0.55); border-color: rgba(137,180,250,.18);
           backdrop-filter: blur(12px) saturate(1.4); -webkit-backdrop-filter: blur(12px) saturate(1.4);
@@ -560,17 +560,13 @@
           background: #1e1e2e; border-color: #313244; box-shadow: 0 8px 40px rgba(0,0,0,.5);
           backdrop-filter: none; -webkit-backdrop-filter: none;
         }
-        #apt-panel.view-page #apt-body {
-          max-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0;
-        }
-        #apt-panel.view-page:hover #apt-body, #apt-panel.view-page:focus-within #apt-body {
-          max-height: 450px; padding-top: 10px; opacity: 1;
-        }
+        #apt-panel.view-page #apt-list-container { opacity: 0; transition: opacity .2s; }
+        #apt-panel.view-page:hover #apt-list-container, #apt-panel.view-page:focus-within #apt-list-container { opacity: 1; }
         #apt-panel.view-page #apt-title, #apt-panel.view-page #apt-header-btns { opacity: 0.65; }
         #apt-panel.view-page:hover #apt-title, #apt-panel.view-page:focus-within #apt-title,
         #apt-panel.view-page:hover #apt-header-btns, #apt-panel.view-page:focus-within #apt-header-btns { opacity: 1; }
         #apt-panel.view-page #apt-header { border-top-color: rgba(137,180,250,.12); }
-        /* Full view — same collapsed treatment when not hovered */
+        /* Full view — frosted glass, stable layout */
         #apt-panel.view-full {
           background: rgba(20,20,35,0.55); border-color: rgba(49,50,68,0.35);
           backdrop-filter: blur(12px) saturate(1.4); -webkit-backdrop-filter: blur(12px) saturate(1.4);
@@ -578,12 +574,6 @@
         #apt-panel.view-full:hover, #apt-panel.view-full:focus-within {
           background: #1e1e2e; border-color: #313244; box-shadow: 0 8px 40px rgba(0,0,0,.5);
           backdrop-filter: none; -webkit-backdrop-filter: none;
-        }
-        #apt-panel.view-full #apt-body {
-          max-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0;
-        }
-        #apt-panel.view-full:hover #apt-body, #apt-panel.view-full:focus-within #apt-body {
-          max-height: 450px; padding-top: 10px; opacity: 1;
         }
         #apt-panel.view-full #apt-title, #apt-panel.view-full #apt-header-btns { opacity: 0.65; }
         #apt-panel.view-full:hover #apt-title, #apt-panel.view-full:focus-within #apt-title,
@@ -1120,8 +1110,8 @@
             <button class="apt-icon-btn" id="apt-btn-new" title="New prompt">+</button>
             <button class="apt-icon-btn" id="apt-btn-sync" title="GitHub sync">⇅</button>
             <button class="apt-icon-btn" id="apt-btn-settings" title="Settings">⚙</button>
+            <span class="apt-header-sep" id="apt-header-sep"></span>
             <button class="apt-icon-btn" id="apt-btn-expand" title="Full view" style="display:none">⤢</button>
-            <span class="apt-header-sep"></span>
             <button class="apt-icon-btn" id="apt-btn-close" title="Minimize">−</button>
           </div>
         </div>
@@ -1210,9 +1200,11 @@
       const syncBtn = this._shadow.querySelector('#apt-btn-sync');
       const settingsBtn = this._shadow.querySelector('#apt-btn-settings');
       const expandBtn = this._shadow.querySelector('#apt-btn-expand');
+      const sepEl = this._shadow.querySelector('#apt-header-sep');
       if (newBtn) newBtn.style.display = isPage ? 'none' : '';
       if (syncBtn) syncBtn.style.display = isPage ? 'none' : '';
       if (settingsBtn) settingsBtn.style.display = isPage ? 'none' : '';
+      if (sepEl) sepEl.style.display = isPage ? 'none' : '';
       if (expandBtn) expandBtn.style.display = isPage ? '' : 'none';
       this._panel.classList.toggle('view-page', isPage);
       this._panel.classList.toggle('view-full', this._viewMode === 'full');
