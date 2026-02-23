@@ -509,7 +509,7 @@
         #apt-header {
           display: flex; align-items: center; justify-content: space-between;
           padding: 10px 12px; cursor: move; user-select: none;
-          border-bottom: 1px solid #313244; flex-shrink: 0;
+          border-top: 1px solid #313244; flex-shrink: 0;
         }
         #apt-header-left { display: flex; align-items: center; gap: 8px; }
         #apt-logo { font-size: 18px; }
@@ -1002,6 +1002,10 @@
       const panel = document.createElement('div');
       panel.id = 'apt-panel';
       setHTML(panel, `
+        <div id="apt-body">
+          <input id="apt-search" placeholder="Search prompts…">
+          <div id="apt-list-container"></div>
+        </div>
         <div id="apt-header">
           <div id="apt-header-left">
             <span id="apt-logo">⚡</span>
@@ -1012,13 +1016,9 @@
             <button class="apt-icon-btn" id="apt-btn-sync" title="GitHub sync">⇅</button>
             <button class="apt-icon-btn" id="apt-btn-settings" title="Settings">⚙</button>
             <span class="apt-header-sep"></span>
-            <button class="apt-icon-btn" id="apt-btn-collapse" title="Collapse">▲</button>
-            <button class="apt-icon-btn" id="apt-btn-close" title="Close">✕</button>
+            <button class="apt-icon-btn" id="apt-btn-collapse" title="Collapse">▼</button>
+            <button class="apt-icon-btn" id="apt-btn-close" title="Minimize">−</button>
           </div>
-        </div>
-        <div id="apt-body">
-          <input id="apt-search" placeholder="Search prompts…">
-          <div id="apt-list-container"></div>
         </div>
       `);
       return panel;
@@ -1067,16 +1067,16 @@
         this._openSettingsDialog();
       });
 
-      // Collapse button — body slides up (upward direction)
+      // Collapse button — body slides down toward header (header stays at bottom)
       this._shadow.querySelector('#apt-btn-collapse').addEventListener('click', () => {
         const body = this._shadow.querySelector('#apt-body');
         const btn = this._shadow.querySelector('#apt-btn-collapse');
         const isCollapsed = body.classList.toggle('collapsed');
-        btn.textContent = isCollapsed ? '▼' : '▲';
+        btn.textContent = isCollapsed ? '▲' : '▼';
         btn.title = isCollapsed ? 'Expand' : 'Collapse';
       });
 
-      // Close button — hide panel, show restore pill
+      // Minimize button — hide panel, show restore pill
       this._shadow.querySelector('#apt-btn-close').addEventListener('click', () => {
         this._panel.style.display = 'none';
         this._showRestoreButton();
