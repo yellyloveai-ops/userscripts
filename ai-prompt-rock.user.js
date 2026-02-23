@@ -773,12 +773,23 @@
       return `
         .apt-dbtn {
           padding: 9px 18px; border-radius: 8px; border: none;
-          font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity .15s, transform .1s;
+          font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity .15s, background .15s, transform .1s;
         }
         .apt-dbtn:active { transform: scale(.97); }
-        .apt-dbtn-cancel { background: #313244; color: #a6adc8; }
-        .apt-dbtn-submit { background: #89b4fa; color: #1e1e2e; }
-        .apt-dbtn-copy { background: #a6e3a1; color: #1e1e2e; }
+        .apt-dbtn-cancel  { background: #313244; color: #a6adc8; }
+        .apt-dbtn-cancel:hover  { background: #45475a; }
+        .apt-dbtn-submit  { background: #89b4fa; color: #1e1e2e; }  /* primary action */
+        .apt-dbtn-submit:hover  { opacity: .85; }
+        .apt-dbtn-copy    { background: #a6e3a1; color: #1e1e2e; }  /* copy / success */
+        .apt-dbtn-copy:hover    { opacity: .85; }
+        .apt-dbtn-run     { background: #89dceb; color: #1e1e2e; }  /* run / test */
+        .apt-dbtn-run:hover     { opacity: .85; }
+        .apt-dbtn-push    { background: #cba6f7; color: #1e1e2e; }  /* push / export */
+        .apt-dbtn-push:hover    { opacity: .85; }
+        .apt-dbtn-share   { background: #f9e2af; color: #1e1e2e; }  /* share / link */
+        .apt-dbtn-share:hover   { opacity: .85; }
+        .apt-dbtn-danger  { background: #45475a; color: #f38ba8; }  /* destructive */
+        .apt-dbtn-danger:hover  { background: #3d2929; color: #f38ba8; }
         .apt-dbtn:disabled { opacity: .5; cursor: not-allowed; }
       `;
     },
@@ -1407,10 +1418,10 @@
           </div>
         </div>
         <div class="apt-dialog-footer">
-          ${isEdit ? '<button class="apt-dbtn" id="apt-pd-delete" style="background:#45475a;color:#f38ba8;margin-right:auto">🗑 Delete</button>' : ''}
+          ${isEdit ? '<button class="apt-dbtn apt-dbtn-danger" id="apt-pd-delete" style="margin-right:auto">🗑 Delete</button>' : ''}
           <button class="apt-dbtn apt-dbtn-cancel" id="apt-pd-cancel">Cancel</button>
-          <button class="apt-dbtn apt-dbtn-submit" id="apt-pd-test">▶ Test</button>
-          <button class="apt-dbtn apt-dbtn-copy" id="apt-pd-save">💾 Save</button>
+          <button class="apt-dbtn apt-dbtn-run" id="apt-pd-test">▶ Test</button>
+          <button class="apt-dbtn apt-dbtn-submit" id="apt-pd-save">💾 Save</button>
         </div>
       `);
 
@@ -1507,14 +1518,14 @@
             <div class="apt-field-label">Share config <span style="font-weight:400;font-size:11px;color:#6c7086;text-transform:none;letter-spacing:0">(owner/repo/branch/path/token)</span></div>
             <div style="display:flex;gap:6px;align-items:center">
               <input class="apt-field-input" id="apt-sync-sharelink" readonly style="flex:1;font-size:11px;color:#6c7086;cursor:text" placeholder="Enter owner & repo above to generate link">
-              <button class="apt-dbtn" id="apt-sync-copylink" style="background:#f9e2af;color:#1e1e2e;flex-shrink:0;padding:9px 12px;font-size:15px" title="Copy shareable link">🔗</button>
+              <button class="apt-dbtn apt-dbtn-share" id="apt-sync-copylink" style="flex-shrink:0;padding:9px 12px;font-size:15px" title="Copy shareable link">🔗</button>
             </div>
           </div>
         </div>
         <div class="apt-dialog-footer">
           <button class="apt-dbtn apt-dbtn-cancel" id="apt-sync-close">Close</button>
-          <button class="apt-dbtn" id="apt-sync-pull" style="background:#89dceb;color:#1e1e2e">⇓ Pull</button>
-          <button class="apt-dbtn" id="apt-sync-push" style="background:#cba6f7;color:#1e1e2e">⇑ Push</button>
+          <button class="apt-dbtn apt-dbtn-run" id="apt-sync-pull">⇓ Pull</button>
+          <button class="apt-dbtn apt-dbtn-push" id="apt-sync-push">⇑ Push</button>
         </div>
       `);
 
