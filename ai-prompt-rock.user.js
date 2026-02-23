@@ -538,13 +538,13 @@
         #apt-list-container { flex: 1; overflow-y: auto; }
         #apt-restore-pill {
           position: fixed; bottom: 24px; right: 24px; z-index: 2147483647;
-          background: #1e1e2e; border: 1px solid #313244; border-radius: 20px;
-          padding: 8px 14px; color: #89b4fa; font-size: 13px; font-weight: 600;
-          cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.4);
-          display: flex; align-items: center; gap: 6px;
+          background: transparent; border: 1px solid rgba(137,180,250,.3); border-radius: 50%;
+          width: 40px; height: 40px; color: #89b4fa; font-size: 20px;
+          cursor: pointer; box-shadow: none;
+          display: flex; align-items: center; justify-content: center;
           transition: background .15s, border-color .15s; user-select: none;
         }
-        #apt-restore-pill:hover { background: #313244; border-color: #89b4fa; }
+        #apt-restore-pill:hover { background: rgba(137,180,250,.12); border-color: #89b4fa; }
       `;
     },
 
@@ -1007,7 +1007,7 @@
         </div>
         <div id="apt-header">
           <div id="apt-header-left">
-            <span id="apt-logo">⚡</span>
+            <span id="apt-logo">🚀</span>
             <span id="apt-title">Prompt Rock</span>
           </div>
           <div id="apt-header-btns">
@@ -1830,7 +1830,7 @@
     _showRestoreButton() {
       const pill = document.createElement('div');
       pill.id = 'apt-restore-pill';
-      setHTML(pill, '<span>⚡</span><span>Prompt Rock</span>');
+      setHTML(pill, '<span>🚀</span>');
       this._shadow.appendChild(pill);
       pill.addEventListener('click', () => {
         this._panel.style.display = '';
