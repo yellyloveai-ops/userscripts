@@ -551,31 +551,37 @@
           transition: max-height .25s ease, padding .2s ease, opacity .2s;
         }
         #apt-panel:hover #apt-body, #apt-panel:focus-within #apt-body { opacity: 1; }
-        /* Page view — frosted glass, stable layout; hide only prompt content */
+        /* Page view — light frosted glass; prompt content visible on unhover */
         #apt-panel.view-page {
-          background: rgba(20,20,35,0.55); border-color: rgba(137,180,250,.18);
+          background: rgba(20,20,35,0.35); border-color: rgba(137,180,250,.18);
           backdrop-filter: blur(12px) saturate(1.4); -webkit-backdrop-filter: blur(12px) saturate(1.4);
         }
         #apt-panel.view-page:hover, #apt-panel.view-page:focus-within {
           background: #1e1e2e; border-color: #313244; box-shadow: 0 8px 40px rgba(0,0,0,.5);
           backdrop-filter: none; -webkit-backdrop-filter: none;
         }
-        #apt-panel.view-page #apt-list-container { opacity: 0; transition: opacity .2s; }
+        #apt-panel.view-page #apt-body { opacity: 0.85; }
+        #apt-panel.view-page:hover #apt-body, #apt-panel.view-page:focus-within #apt-body { opacity: 1; }
+        #apt-panel.view-page #apt-list-container { opacity: 0.9; transition: opacity .2s; }
         #apt-panel.view-page:hover #apt-list-container, #apt-panel.view-page:focus-within #apt-list-container { opacity: 1; }
-        #apt-panel.view-page #apt-title, #apt-panel.view-page #apt-header-btns { opacity: 0.65; }
+        #apt-panel.view-page #apt-title, #apt-panel.view-page #apt-header-btns { opacity: 0.7; }
         #apt-panel.view-page:hover #apt-title, #apt-panel.view-page:focus-within #apt-title,
         #apt-panel.view-page:hover #apt-header-btns, #apt-panel.view-page:focus-within #apt-header-btns { opacity: 1; }
         #apt-panel.view-page #apt-header { border-top-color: rgba(137,180,250,.12); }
-        /* Full view — frosted glass, stable layout */
+        /* Full view — light frosted glass; content visible on unhover */
         #apt-panel.view-full {
-          background: rgba(20,20,35,0.55); border-color: rgba(49,50,68,0.35);
+          background: rgba(20,20,35,0.35); border-color: rgba(49,50,68,0.35);
           backdrop-filter: blur(12px) saturate(1.4); -webkit-backdrop-filter: blur(12px) saturate(1.4);
         }
         #apt-panel.view-full:hover, #apt-panel.view-full:focus-within {
           background: #1e1e2e; border-color: #313244; box-shadow: 0 8px 40px rgba(0,0,0,.5);
           backdrop-filter: none; -webkit-backdrop-filter: none;
         }
-        #apt-panel.view-full #apt-title, #apt-panel.view-full #apt-header-btns { opacity: 0.65; }
+        #apt-panel.view-full #apt-body { opacity: 0.85; }
+        #apt-panel.view-full:hover #apt-body, #apt-panel.view-full:focus-within #apt-body { opacity: 1; }
+        #apt-panel.view-full #apt-search { opacity: 0.8; }
+        #apt-panel.view-full:hover #apt-search, #apt-panel.view-full:focus-within #apt-search { opacity: 1; }
+        #apt-panel.view-full #apt-title, #apt-panel.view-full #apt-header-btns { opacity: 0.7; }
         #apt-panel.view-full:hover #apt-title, #apt-panel.view-full:focus-within #apt-title,
         #apt-panel.view-full:hover #apt-header-btns, #apt-panel.view-full:focus-within #apt-header-btns { opacity: 1; }
         #apt-search {
