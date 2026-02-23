@@ -527,7 +527,6 @@
           padding: 10px 12px 8px; max-height: 450px;
           transition: max-height .25s ease, padding .2s ease, opacity .2s;
         }
-        #apt-body.collapsed { max-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0; }
         #apt-search {
           width: 100%; background: #181825; border: 1px solid #313244;
           border-radius: 8px; color: #cdd6f4; font-size: 12px; padding: 7px 10px;
@@ -1025,12 +1024,11 @@
 
     _setupDraggable() {
       const header = this._panel.querySelector('#apt-header');
-      let ox = 0, oy = 0, dragging = false, moved = false;
+      let ox = 0, oy = 0, dragging = false;
 
       header.addEventListener('mousedown', (e) => {
         if (e.target.classList.contains('apt-icon-btn')) return;
         dragging = true;
-        moved = false;
         const r = this._panel.getBoundingClientRect();
         ox = e.clientX - r.left;
         oy = e.clientY - r.top;
@@ -1044,19 +1042,11 @@
 
       window.addEventListener('mousemove', (e) => {
         if (!dragging) return;
-        moved = true;
         this._panel.style.left = (e.clientX - ox) + 'px';
         this._panel.style.top = (e.clientY - oy) + 'px';
       }, true);
 
       window.addEventListener('mouseup', () => { dragging = false; }, true);
-
-      // Click header (without dragging) to toggle collapsed body
-      header.addEventListener('click', (e) => {
-        if (e.target.classList.contains('apt-icon-btn')) return;
-        if (moved) { moved = false; return; }
-        this._shadow.querySelector('#apt-body').classList.toggle('collapsed');
-      });
     }
 
     _setupPanelEvents() {
