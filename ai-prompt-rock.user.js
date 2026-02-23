@@ -309,7 +309,7 @@
         const p = pat.toLowerCase().trim();
         if (!p) return false;
         if (p.includes('*')) {
-          const re = new RegExp(p.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*'));
+          const re = new RegExp(p.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*'), 'i');
           return re.test(u);
         }
         return u.includes(p);
