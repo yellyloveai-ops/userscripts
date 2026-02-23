@@ -572,8 +572,8 @@
         #apt-panel.view-page:hover .apt-item-meta, #apt-panel.view-page:focus-within .apt-item-meta { color: #6c7086; }
         #apt-panel.view-page .apt-item-btn.run { color: rgba(137,180,250,.3); border-color: rgba(137,180,250,.15); transition: color .15s, border-color .15s; }
         #apt-panel.view-page:hover .apt-item-btn.run, #apt-panel.view-page:focus-within .apt-item-btn.run { color: #89b4fa; border-color: rgba(137,180,250,.4); }
-        #apt-panel.view-page .apt-item-sep { background: rgba(49,50,68,.25); transition: background .15s; }
-        #apt-panel.view-page:hover .apt-item-sep, #apt-panel.view-page:focus-within .apt-item-sep { background: rgba(49,50,68,.55); }
+        #apt-panel.view-page .apt-item-sep { background: rgba(49,50,68,.1); transition: background .15s; }
+        #apt-panel.view-page:hover .apt-item-sep, #apt-panel.view-page:focus-within .apt-item-sep { background: rgba(49,50,68,.2); }
         /* Full view — solid background; 80% transparent on unhover */
         #apt-panel.view-full {
           background: #1e1e2e; border-color: rgba(49,50,68,0.6); opacity: 0.2;
@@ -620,12 +620,12 @@
         }
         .apt-item-sep {
           height: 1px; border-radius: 999px;
-          background: rgba(49,50,68,.55);
-          margin: 1px 10px; flex-shrink: 0;
+          background: rgba(49,50,68,.2);
+          margin: 2px 16px; flex-shrink: 0;
         }
         .apt-item {
-          display: flex; align-items: center; gap: 8px; padding: 8px 10px;
-          border-radius: 8px; cursor: pointer; transition: background .12s;
+          display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+          border-radius: 999px; cursor: pointer; transition: background .12s;
           border: 1px solid transparent;
         }
         .apt-item:hover { background: #232438; }
