@@ -1939,6 +1939,10 @@
       ov.className = 'apt-overlay';
       ov.appendChild(contentEl);
       this._shadow.appendChild(ov);
+      const stopKb = (e) => e.stopPropagation();
+      ov.addEventListener('keydown', stopKb, true);
+      ov.addEventListener('keyup', stopKb, true);
+      ov.addEventListener('keypress', stopKb, true);
       return ov;
     }
 
