@@ -571,6 +571,9 @@
         #apt-panel.view-page .apt-item { transition: background .15s, border-color .15s; }
         #apt-panel.view-page .apt-item.url-match { background: rgba(137,180,250,.02); border-color: rgba(137,180,250,.1); }
         #apt-panel.view-page:hover .apt-item.url-match, #apt-panel.view-page:focus-within .apt-item.url-match { background: rgba(137,180,250,.04); border-color: rgba(137,180,250,.25); }
+        #apt-panel.view-page .apt-item-name { color: #cdd6f4; transition: color .15s; }
+        #apt-panel.view-page .apt-item-meta { color: rgba(108,112,134,.35); transition: color .15s; }
+        #apt-panel.view-page:hover .apt-item-meta, #apt-panel.view-page:focus-within .apt-item-meta { color: #6c7086; }
         #apt-panel.view-page .apt-item-btn.run { color: rgba(137,180,250,.5); border-color: rgba(137,180,250,.2); transition: color .15s, border-color .15s; }
         #apt-panel.view-page:hover .apt-item-btn.run, #apt-panel.view-page:focus-within .apt-item-btn.run { color: #89b4fa; border-color: rgba(137,180,250,.4); }
         /* Full view — light frosted glass; content visible on unhover */
