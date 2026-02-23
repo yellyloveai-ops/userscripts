@@ -522,7 +522,7 @@
         #apt-panel * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
         #apt-panel {
           position: fixed; bottom: 24px; right: 24px; z-index: 2147483647;
-          width: 340px; background: #1e1e2e; border-radius: 14px;
+          width: 200px; background: #1e1e2e; border-radius: 14px;
           box-shadow: 0 8px 40px rgba(0,0,0,.5); border: 1px solid #313244;
           display: flex; flex-direction: column;
         }
