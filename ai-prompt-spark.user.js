@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         AI Prompt Rock
+// @name         AI Prompt Spark
 // @namespace    http://tampermonkey.net/
 // @version      2.1.0
 // @description  Load context-aware prompts for any page, test with AI, and sync via GitHub
@@ -13,13 +13,13 @@
 // @connect      api.openai.com
 // @connect      api.github.com
 // @run-at       document-end
-// @downloadURL  https://raw.githubusercontent.com/yellyloveai-ops/yelly-spark/main/ai-prompt-rock.user.js
-// @updateURL    https://raw.githubusercontent.com/yellyloveai-ops/yelly-spark/main/ai-prompt-rock.user.js
+// @downloadURL  https://raw.githubusercontent.com/yellyloveai-ops/yelly-spark/main/ai-prompt-spark.user.js
+// @updateURL    https://raw.githubusercontent.com/yellyloveai-ops/yelly-spark/main/ai-prompt-spark.user.js
 // @license      Apache-2.0
 // ==/UserScript==
 
 /**
- * AI Prompt Rock - Modular Userscript
+ * AI Prompt Spark - Modular Userscript
  *
  * Architecture:
  * - Config: Configuration management with GM_setValue/GM_getValue
@@ -602,7 +602,7 @@
         }
         #apt-restore-pill:hover { background: rgba(137,180,250,.12); border-color: #89b4fa; }
         #apt-restore-pill::after {
-          content: 'Prompt Rock (by Yelly.ink)';
+          content: 'Prompt Spark (by Yelly.ink)';
           position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
           background: #1e1e2e; border: 1px solid #313244; border-radius: 8px;
           color: #cdd6f4; font-size: 12px; font-weight: 500; white-space: nowrap;
@@ -1185,7 +1185,7 @@
       // Rocket icon — open the @downloadURL so Tampermonkey can offer an update
       this._shadow.querySelector('#apt-title').addEventListener('click', () => {
         const downloadURL = (typeof GM_info !== 'undefined' && GM_info.script?.downloadURL)
-          || 'https://raw.githubusercontent.com/yellyloveai-ops/yelly-spark/main/ai-prompt-rock.user.js';
+          || 'https://raw.githubusercontent.com/yellyloveai-ops/yelly-spark/main/ai-prompt-spark.user.js';
         window.open(downloadURL, '_blank');
         this._showToast('Opening update page…');
       });
@@ -2082,7 +2082,7 @@
       console.log('[APR] App.init() — constructing UIManager');
       try {
         this._ui = new UIManager(this._config, this._storage, this._apiClient);
-        console.log('[APR] AI Prompt Rock initialized ✓');
+        console.log('[APR] AI Prompt Spark initialized ✓');
       } catch (e) {
         console.error('[APR] UIManager construction failed:', e);
       }
